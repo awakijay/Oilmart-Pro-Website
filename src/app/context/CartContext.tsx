@@ -12,24 +12,31 @@ export interface Product {
   specifications?: { [key: string]: string };
 }
 
+export type OperationType = 'sell' | 'lease' | 'buy_for_me';
+
 export interface CartItem extends Product {
   quantity: number;
+  operationType: OperationType;
 }
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product) => void;
+  lastAddedItem: { name: string; operationType: OperationType; timestamp: number } | null;
+  addToCart: (product: Product, operationType?: OperationType) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateOperationType: (productId: string, operationType: OperationType) => void;
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  clearLastAddedItem: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [lastAddedItem, setLastAddedItem] = useState<{ name: string; operationType: OperationType; timestamp: number } | null>(null);
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -44,17 +51,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('oilmartpro_cart', JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, operationType: OperationType = 'sell') => {
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === product.id);
       if (existingItem) {
         return prevCart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + 1, operationType }
             : item
         );
       }
-      return [...prevCart, { ...product, quantity: 1 }];
+      return [...prevCart, { ...product, quantity: 1, operationType }];
+    });
+    setLastAddedItem({
+      name: product.name,
+      operationType,
+      timestamp: Date.now(),
     });
   };
 
@@ -74,8 +86,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const updateOperationType = (productId: string, operationType: OperationType) => {
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.id === productId ? { ...item, operationType } : item
+      )
+    );
+  };
+
   const clearCart = () => {
     setCart([]);
+  };
+
+  const clearLastAddedItem = () => {
+    setLastAddedItem(null);
   };
 
   const getTotalItems = () => {
@@ -95,12 +119,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider
       value={{
         cart,
+        lastAddedItem,
         addToCart,
         removeFromCart,
         updateQuantity,
+        updateOperationType,
         clearCart,
         getTotalItems,
         getTotalPrice,
+        clearLastAddedItem,
       }}
     >
       {children}

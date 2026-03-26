@@ -1,137 +1,102 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2, Search, Eye } from 'lucide-react';
+import { BlogPost, useAppData } from '../../context/AppDataContext';
 
-interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  content: string;
-  image: string;
-  author: string;
-  date: string;
-  status: 'published' | 'draft';
-  category: string;
-}
+const defaultPost: Partial<BlogPost> = {
+  title: '',
+  excerpt: '',
+  content: '',
+  image: '',
+  category: 'Technical',
+  status: 'draft',
+};
 
 export function AdminBlog() {
-  const [posts, setPosts] = useState<BlogPost[]>([
-    {
-      id: '1',
-      title: 'Top 10 Safety Tips for Oil & Gas Equipment Operation',
-      excerpt: 'Essential safety guidelines every operator should know when working with heavy equipment.',
-      content: 'Full blog content here...',
-      image: 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-      author: 'Admin',
-      date: '2026-03-20',
-      status: 'published',
-      category: 'Safety',
-    },
-    {
-      id: '2',
-      title: 'Understanding BOP Systems: A Complete Guide',
-      excerpt: 'Learn everything you need to know about Blowout Preventer systems.',
-      content: 'Full blog content here...',
-      image: 'https://images.unsplash.com/photo-1765048892515-3bc3557dc980?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-      author: 'Admin',
-      date: '2026-03-15',
-      status: 'published',
-      category: 'Technical',
-    },
-  ]);
+  const { blogPosts: posts, addBlogPost, updateBlogPost, deleteBlogPost } = useAppData();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newPost, setNewPost] = useState<Partial<BlogPost>>({
-    title: '',
-    excerpt: '',
-    content: '',
-    image: '',
-    category: 'Technical',
-    status: 'draft',
-  });
+  const [showModal, setShowModal] = useState(false);
+  const [viewingPostId, setViewingPostId] = useState<string | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [formPost, setFormPost] = useState<Partial<BlogPost>>(defaultPost);
 
-  const filteredPosts = posts.filter(p =>
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredPosts = posts.filter((post) =>
+    post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    post.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this blog post?')) {
-      setPosts(posts.filter(p => p.id !== id));
-    }
+  const viewingPost = posts.find((post) => post.id === viewingPostId) ?? null;
+  const editingPost = posts.find((post) => post.id === editingPostId) ?? null;
+
+  const resetForm = () => {
+    setShowModal(false);
+    setEditingPostId(null);
+    setFormPost(defaultPost);
   };
 
   const handleAddPost = (e: React.FormEvent) => {
     e.preventDefault();
-    const post: BlogPost = {
+    addBlogPost({
       id: Date.now().toString(),
-      title: newPost.title || '',
-      excerpt: newPost.excerpt || '',
-      content: newPost.content || '',
-      image: newPost.image || 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+      title: formPost.title || '',
+      excerpt: formPost.excerpt || '',
+      content: formPost.content || '',
+      image: formPost.image || 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
       author: 'Admin',
       date: new Date().toISOString().split('T')[0],
-      status: newPost.status || 'draft',
-      category: newPost.category || 'Technical',
-    };
-    setPosts([post, ...posts]);
-    setShowAddModal(false);
-    setNewPost({
-      title: '',
-      excerpt: '',
-      content: '',
-      image: '',
-      category: 'Technical',
-      status: 'draft',
+      status: formPost.status || 'draft',
+      category: formPost.category || 'Technical',
     });
+    resetForm();
+  };
+
+  const handleUpdatePost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPost) return;
+    updateBlogPost(editingPost.id, {
+      title: formPost.title || editingPost.title,
+      excerpt: formPost.excerpt || editingPost.excerpt,
+      content: formPost.content || editingPost.content,
+      image: formPost.image || editingPost.image,
+      category: formPost.category || editingPost.category,
+      status: formPost.status || editingPost.status,
+    });
+    resetForm();
+  };
+
+  const openEditModal = (post: BlogPost) => {
+    setEditingPostId(post.id);
+    setFormPost(post);
+    setShowModal(true);
   };
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Blog Management</h1>
-          <p className="text-gray-600">Create and manage blog posts</p>
+          <p className="text-gray-600">Create and manage content that stays available across admin sessions.</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-        >
+        <button onClick={() => { setEditingPostId(null); setFormPost(defaultPost); setShowModal(true); }} className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-3 text-white transition hover:bg-orange-600">
           <Plus className="w-5 h-5" />
           Add Blog Post
         </button>
       </div>
 
-      {/* Search */}
       <div className="mb-6">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search blog posts..."
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-          />
+          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search blog posts..." className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
         </div>
       </div>
 
-      {/* Blog Posts Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredPosts.map((post) => (
           <div key={post.id} className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
             <img src={post.image} alt={post.title} className="w-full h-48 object-cover" />
             <div className="p-6">
-              <div className="flex items-center justify-between mb-3">
-                <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">
-                  {post.category}
-                </span>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  post.status === 'published'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {post.status}
-                </span>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">{post.category}</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${post.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{post.status}</span>
               </div>
               <h3 className="font-bold text-gray-900 mb-2 line-clamp-2">{post.title}</h3>
               <p className="text-sm text-gray-600 mb-4 line-clamp-2">{post.excerpt}</p>
@@ -139,126 +104,60 @@ export function AdminBlog() {
                 <span>{post.author}</span>
                 <span>{post.date}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="flex-1 flex items-center justify-center gap-2 p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition">
-                  <Eye className="w-4 h-4" />
-                  <span className="text-sm">View</span>
-                </button>
-                <button className="flex-1 flex items-center justify-center gap-2 p-2 text-green-500 hover:bg-green-50 rounded-lg transition">
-                  <Edit2 className="w-4 h-4" />
-                  <span className="text-sm">Edit</span>
-                </button>
-                <button 
-                  onClick={() => handleDelete(post.id)}
-                  className="flex-1 flex items-center justify-center gap-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="text-sm">Delete</span>
-                </button>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button onClick={() => setViewingPostId(post.id)} className="flex-1 flex items-center justify-center gap-2 p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition"><Eye className="w-4 h-4" /><span className="text-sm">View</span></button>
+                <button onClick={() => openEditModal(post)} className="flex-1 flex items-center justify-center gap-2 p-2 text-green-500 hover:bg-green-50 rounded-lg transition"><Edit2 className="w-4 h-4" /><span className="text-sm">Edit</span></button>
+                <button onClick={() => deleteBlogPost(post.id)} className="flex-1 flex items-center justify-center gap-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="text-sm">Delete</span></button>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Add Blog Post Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full p-8 my-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Add New Blog Post</h2>
-            <form onSubmit={handleAddPost} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">Title *</label>
-                <input
-                  type="text"
-                  value={newPost.title}
-                  onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  placeholder="Enter blog post title"
-                />
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="my-8 w-full max-w-3xl rounded-lg bg-white p-5 sm:p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingPost ? 'Edit Blog Post' : 'Add New Blog Post'}</h2>
+            <form onSubmit={editingPost ? handleUpdatePost : handleAddPost} className="space-y-4">
+              <input value={formPost.title} onChange={(e) => setFormPost({ ...formPost, title: e.target.value })} required placeholder="Title" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+              <textarea value={formPost.excerpt} onChange={(e) => setFormPost({ ...formPost, excerpt: e.target.value })} required rows={2} placeholder="Excerpt" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+              <textarea value={formPost.content} onChange={(e) => setFormPost({ ...formPost, content: e.target.value })} required rows={6} placeholder="Content" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+              <input value={formPost.image} onChange={(e) => setFormPost({ ...formPost, image: e.target.value })} placeholder="Featured Image URL" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <select value={formPost.category} onChange={(e) => setFormPost({ ...formPost, category: e.target.value })} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                  <option>Technical</option>
+                  <option>Safety</option>
+                  <option>Industry News</option>
+                  <option>Maintenance</option>
+                  <option>Best Practices</option>
+                </select>
+                <select value={formPost.status} onChange={(e) => setFormPost({ ...formPost, status: e.target.value as 'published' | 'draft' })} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                </select>
               </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">Excerpt *</label>
-                <textarea
-                  value={newPost.excerpt}
-                  onChange={(e) => setNewPost({ ...newPost, excerpt: e.target.value })}
-                  required
-                  rows={2}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  placeholder="Brief description of the blog post"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">Content *</label>
-                <textarea
-                  value={newPost.content}
-                  onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                  required
-                  rows={6}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  placeholder="Full blog post content"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">Featured Image URL</label>
-                <input
-                  type="url"
-                  value={newPost.image}
-                  onChange={(e) => setNewPost({ ...newPost, image: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  placeholder="https://example.com/image.jpg"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Category</label>
-                  <select
-                    value={newPost.category}
-                    onChange={(e) => setNewPost({ ...newPost, category: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  >
-                    <option>Technical</option>
-                    <option>Safety</option>
-                    <option>Industry News</option>
-                    <option>Maintenance</option>
-                    <option>Best Practices</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Status</label>
-                  <select
-                    value={newPost.status}
-                    onChange={(e) => setNewPost({ ...newPost, status: e.target.value as 'published' | 'draft' })}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-                >
-                  Add Blog Post
-                </button>
+              <div className="flex flex-col gap-4 sm:flex-row">
+                <button type="button" onClick={resetForm} className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">{editingPost ? 'Save Changes' : 'Add Blog Post'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {viewingPost && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="my-8 w-full max-w-3xl rounded-lg bg-white p-5 sm:p-8">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{viewingPost.title}</h2>
+                <p className="text-sm text-gray-500 mt-1">{viewingPost.author} • {viewingPost.date}</p>
+              </div>
+              <button onClick={() => setViewingPostId(null)} className="text-gray-500 hover:text-gray-700 transition">Close</button>
+            </div>
+            <img src={viewingPost.image} alt={viewingPost.title} className="mb-6 h-48 w-full rounded-lg object-cover sm:h-64" />
+            <p className="text-gray-600 mb-4">{viewingPost.excerpt}</p>
+            <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">{viewingPost.content}</div>
           </div>
         </div>
       )}

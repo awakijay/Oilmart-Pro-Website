@@ -2,15 +2,24 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { ShoppingCart, ArrowLeft, Check, Truck, Shield, Clock, Star, MessageCircle } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import { useCart } from '../context/CartContext';
-import { products } from '../data/products';
+import { OperationType, useCart } from '../context/CartContext';
+import { useAppData } from '../context/AppDataContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { formatNaira, parseCurrencyValue } from '../utils/currency';
+
+const operationOptions: { value: OperationType; label: string; description: string }[] = [
+  { value: 'sell', label: 'SELLS', description: 'Buy this item directly from us.' },
+  { value: 'lease', label: 'LEASE', description: 'Rent this equipment for operational use.' },
+  { value: 'buy_for_me', label: 'BUY FOR ME', description: 'Request procurement and we handle the purchase for you.' },
+];
 
 export function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { products } = useAppData();
   const [quantity, setQuantity] = useState(1);
+  const [operationType, setOperationType] = useState<OperationType>('sell');
   const [showAddedMessage, setShowAddedMessage] = useState(false);
 
   const product = products.find(p => p.id === id);
@@ -31,10 +40,12 @@ export function ProductDetail() {
   const relatedProducts = products
     .filter(p => p.category === product.category && p.id !== product.id)
     .slice(0, 4);
+  const productAmount = parseCurrencyValue(product.price);
+  const selectedOperation = operationOptions.find((option) => option.value === operationType);
 
   const handleAddToCart = () => {
     for (let i = 0; i < quantity; i++) {
-      addToCart(product);
+      addToCart(product, operationType);
     }
     setShowAddedMessage(true);
     setTimeout(() => setShowAddedMessage(false), 3000);
@@ -53,9 +64,9 @@ export function ProductDetail() {
         </button>
 
         {/* Product Details */}
-        <div className="grid md:grid-cols-2 gap-12 mb-16">
+        <div className="mb-16 grid gap-8 md:grid-cols-2 md:gap-12">
           {/* Image */}
-          <div className="bg-white rounded-lg p-8">
+          <div className="rounded-lg bg-white p-4 sm:p-6 lg:p-8">
             <ImageWithFallback
               src={product.image}
               alt={product.name}
@@ -66,25 +77,50 @@ export function ProductDetail() {
           {/* Info */}
           <div>
             <div className="text-sm text-orange-500 mb-2">{product.category}</div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">{product.name}</h1>
+            <h1 className="mb-4 text-3xl font-bold text-gray-900 sm:text-4xl">{product.name}</h1>
 
-            <div className="flex items-center gap-2 mb-6">
+            <div className="mb-6 flex flex-wrap items-center gap-2">
               <div className="flex">
                 {[...Array(5)].map((_, i) => (
                   <span key={i} className={`text-xl ${i < Math.floor(product.rating) ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
                 ))}
               </div>
               <span className="text-gray-600">{product.rating} / 5.0</span>
-              <span className="text-gray-400">|</span>
+              <span className="hidden text-gray-400 sm:inline">|</span>
               <span className="text-gray-600">{product.orders} orders</span>
             </div>
 
-            <div className="text-4xl font-bold text-gray-900 mb-6">{product.price}</div>
+            <div className="mb-6 text-3xl font-bold text-gray-900 sm:text-4xl">{product.price}</div>
 
             <p className="text-gray-600 mb-8 leading-relaxed">{product.description}</p>
 
+            <div className="mb-8">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Operation Type</h2>
+              <div className="grid gap-3">
+                {operationOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setOperationType(option.value)}
+                    className={`rounded-lg border-2 p-4 text-left transition ${
+                      operationType === option.value
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-gray-200 hover:border-orange-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900">{option.label}</div>
+                    <div className="text-sm text-gray-600 mt-1">{option.description}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-500">Selected for cart</p>
+                <p className="mt-2 text-lg font-bold text-gray-900">{selectedOperation?.label}</p>
+                <p className="mt-1 text-sm text-gray-600">{selectedOperation?.description}</p>
+              </div>
+            </div>
+
             {/* Rental & Service Features */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
                 <Truck className="w-5 h-5 text-blue-500" />
                 <div>
@@ -99,7 +135,7 @@ export function ProductDetail() {
                   <p className="text-xs text-green-500">API Compliant</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg">
+              <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg sm:col-span-2 xl:col-span-1">
                 <Clock className="w-5 h-5 text-orange-500" />
                 <div>
                   <p className="text-xs text-orange-600 font-semibold">24/7 Support</p>
@@ -111,7 +147,7 @@ export function ProductDetail() {
             {/* Quantity */}
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-900 mb-2">Quantity</label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="w-10 h-10 border-2 border-gray-300 rounded-lg hover:border-orange-500 transition"
@@ -122,7 +158,7 @@ export function ProductDetail() {
                   type="number"
                   value={quantity}
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-20 h-10 border-2 border-gray-300 rounded-lg text-center focus:outline-none focus:border-orange-500"
+                  className="h-10 w-16 min-w-0 rounded-lg border-2 border-gray-300 text-center focus:outline-none focus:border-orange-500 sm:w-20"
                 />
                 <button
                   onClick={() => setQuantity(quantity + 1)}
@@ -134,23 +170,28 @@ export function ProductDetail() {
             </div>
 
             {/* Add to Cart */}
-            <div className="flex gap-4 mb-8">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row">
               <button
                 onClick={handleAddToCart}
-                className="flex-1 flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-4 text-center text-white transition hover:bg-orange-600"
               >
                 <ShoppingCart className="w-5 h-5" />
-                Add to Cart
+                Add to Cart as {selectedOperation?.label}
               </button>
-              <button className="px-8 py-4 border-2 border-orange-500 text-orange-500 rounded-lg hover:bg-orange-50 transition">
+              <Link
+                to={`/contact?intent=quote&product=${encodeURIComponent(product.name)}`}
+                className="rounded-lg border-2 border-orange-500 px-6 py-4 text-center text-orange-500 transition hover:bg-orange-50"
+              >
                 Request Quote
-              </button>
+              </Link>
             </div>
 
             {showAddedMessage && (
               <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg mb-4">
                 <Check className="w-5 h-5 text-green-500" />
-                <span className="text-green-700">Added to cart successfully!</span>
+                <span className="text-green-700">
+                  Added to cart successfully under <span className="font-semibold">{selectedOperation?.label}</span>.
+                </span>
               </div>
             )}
 
@@ -172,9 +213,9 @@ export function ProductDetail() {
         </div>
 
         {/* Rental Terms, Reviews, and Q&A Tabs */}
-        <div className="bg-white rounded-lg shadow-sm p-8 mb-16">
+        <div className="mb-16 rounded-lg bg-white p-4 shadow-sm sm:p-6 lg:p-8">
           <Tabs defaultValue="rental" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-8">
+            <TabsList className="mb-8 grid w-full grid-cols-1 gap-2 sm:grid-cols-3">
               <TabsTrigger value="rental">Rental Terms</TabsTrigger>
               <TabsTrigger value="reviews">Customer Reviews</TabsTrigger>
               <TabsTrigger value="qa">Q&A</TabsTrigger>
@@ -198,7 +239,7 @@ export function ProductDetail() {
                     <h4 className="font-bold text-gray-900">Weekly Rental</h4>
                     <span className="px-2 py-1 bg-orange-500 text-white text-xs rounded">Save 15%</span>
                   </div>
-                  <p className="text-3xl font-bold text-orange-500 mb-3">${(parseInt(product.price.replace(/[^0-9]/g, '')) * 0.85).toLocaleString()}/week</p>
+                  <p className="text-3xl font-bold text-orange-500 mb-3">{formatNaira(productAmount * 0.85)}/week</p>
                   <ul className="space-y-2 text-sm text-gray-600">
                     <li>• Minimum 7 days rental</li>
                     <li>• Free delivery within 200 miles</li>
@@ -211,7 +252,7 @@ export function ProductDetail() {
                     <h4 className="font-bold text-gray-900">Monthly Rental</h4>
                     <span className="px-2 py-1 bg-green-500 text-white text-xs rounded">Save 25%</span>
                   </div>
-                  <p className="text-3xl font-bold text-orange-500 mb-3">${(parseInt(product.price.replace(/[^0-9]/g, '')) * 0.75).toLocaleString()}/month</p>
+                  <p className="text-3xl font-bold text-orange-500 mb-3">{formatNaira(productAmount * 0.75)}/month</p>
                   <ul className="space-y-2 text-sm text-gray-600">
                     <li>• Minimum 30 days rental</li>
                     <li>• Nationwide delivery</li>
@@ -223,7 +264,7 @@ export function ProductDetail() {
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-2xl font-bold text-gray-900">Customer Reviews</h3>
                 <div className="flex items-center gap-2">
                   <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
@@ -239,7 +280,7 @@ export function ProductDetail() {
                   { name: 'Mike Wilson', rating: 4, comment: 'Great quality equipment. Only minor issue was the setup instructions could be clearer, but customer support was very helpful.', date: '2 weeks ago' },
                 ].map((review, i) => (
                   <div key={i} className="border-b border-gray-200 pb-4">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-semibold text-gray-900">{review.name}</p>
                         <div className="flex items-center gap-1">
@@ -275,9 +316,12 @@ export function ProductDetail() {
                 ))}
               </div>
               
-              <button className="w-full py-3 border-2 border-orange-500 text-orange-500 rounded-lg hover:bg-orange-50 transition">
+              <Link
+                to={`/contact?intent=question&product=${encodeURIComponent(product.name)}`}
+                className="block w-full py-3 border-2 border-orange-500 text-orange-500 rounded-lg hover:bg-orange-50 transition text-center"
+              >
                 Ask a Question
-              </button>
+              </Link>
             </TabsContent>
           </Tabs>
         </div>
@@ -286,7 +330,7 @@ export function ProductDetail() {
         {relatedProducts.length > 0 && (
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-8">Related Products</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
               {relatedProducts.map((relatedProduct) => (
                 <div key={relatedProduct.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition group">
                   <Link to={`/product/${relatedProduct.id}`} className="block">

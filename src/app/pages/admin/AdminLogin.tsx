@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Lock, User } from 'lucide-react';
+import { BrandLogo } from '../../components/BrandLogo';
 
 export function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -11,27 +12,24 @@ export function AdminLogin() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Simple demo authentication (in production, use real auth)
     if (username === 'admin' && password === 'admin123') {
       localStorage.setItem('admin_logged_in', 'true');
       navigate('/admin/dashboard');
     } else {
-      setError('Invalid credentials. Try admin/admin123');
+      setError('Invalid credentials.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center px-4 py-8">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-2xl font-bold">OMP</span>
-          </div>
+          <BrandLogo padded className="mx-auto mb-4" imageClassName="h-14 sm:h-16" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
           <p className="text-gray-600">Sign in to manage your store</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white rounded-lg shadow-lg p-5 sm:p-8">
           <form onSubmit={handleLogin}>
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-900 mb-2">
@@ -80,12 +78,12 @@ export function AdminLogin() {
               Sign In
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 text-center">
-              Demo credentials: <span className="font-semibold">admin / admin123</span>
-            </p>
-          </div>
+          <Link
+            to="/"
+            className="mt-4 block text-center text-sm font-semibold text-orange-500 hover:text-orange-600 transition"
+          >
+            Back to Website
+          </Link>
         </div>
       </div>
     </div>

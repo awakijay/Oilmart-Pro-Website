@@ -1,5 +1,6 @@
 import { MapPin, Phone, Mail } from 'lucide-react';
 import { Link } from 'react-router';
+import { BrandLogo } from './BrandLogo';
 
 export function Footer() {
   return (
@@ -7,17 +8,14 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">OMP</span>
-              </div>
-              <span className="font-bold text-white">Oil Mart Pro</span>
-            </div>
+            <Link to="/" className="inline-flex mb-4">
+              <BrandLogo padded imageClassName="h-8 sm:h-9" />
+            </Link>
             <p className="text-sm mb-4">Your trusted partner for oil & gas equipment rental solutions.</p>
             <div className="flex gap-3">
-              <a href="#" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-orange-500 transition">f</a>
-              <a href="#" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-orange-500 transition">in</a>
-              <a href="#" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-orange-500 transition">x</a>
+              <Link to="/contact?intent=sales" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-orange-500 transition">f</Link>
+              <Link to="/contact?intent=sales" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-orange-500 transition">in</Link>
+              <Link to="/contact?intent=sales" className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center hover:bg-orange-500 transition">x</Link>
             </div>
           </div>
           <div>
@@ -25,17 +23,18 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/" className="hover:text-orange-400 transition">Home</Link></li>
               <li><Link to="/products" className="hover:text-orange-400 transition">Equipment Catalog</Link></li>
-              <li><a href="#" className="hover:text-orange-400 transition">Services</a></li>
-              <li><a href="#" className="hover:text-orange-400 transition">Become a Supplier</a></li>
+              <li><Link to="/services" className="hover:text-orange-400 transition">Services</Link></li>
+              <li><Link to="/become-a-supplier" className="hover:text-orange-400 transition">Become a Supplier</Link></li>
             </ul>
           </div>
           <div>
             <h3 className="font-semibold text-white mb-4">Support</h3>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-orange-400 transition">Help Center</a></li>
-              <li><a href="#" className="hover:text-orange-400 transition">Terms & Conditions</a></li>
-              <li><a href="#" className="hover:text-orange-400 transition">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-orange-400 transition">Contact Us</a></li>
+              <li><Link to="/help-center" className="hover:text-orange-400 transition">Help Center</Link></li>
+              <li><Link to="/faq" className="hover:text-orange-400 transition">FAQ</Link></li>
+              <li><Link to="/terms" className="hover:text-orange-400 transition">Terms & Conditions</Link></li>
+              <li><Link to="/privacy" className="hover:text-orange-400 transition">Privacy Policy</Link></li>
+              <li><Link to="/contact?intent=support" className="hover:text-orange-400 transition">Contact Us</Link></li>
             </ul>
           </div>
           <div>

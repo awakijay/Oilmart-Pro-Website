@@ -3,11 +3,17 @@ import { Link, useSearchParams } from 'react-router';
 import { Filter } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useCart } from '../context/CartContext';
-import { products, categories } from '../data/products';
+import { useAppData } from '../context/AppDataContext';
+
+function normalizeCategoryName(value: string) {
+  return value.toLowerCase().replace(/\s*-\s*bop$/, '').trim();
+}
 
 export function Products() {
+  const { products, categories } = useAppData();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryParam = searchParams.get('category');
+  const searchQuery = searchParams.get('q')?.trim() ?? '';
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('featured');
@@ -15,24 +21,47 @@ export function Products() {
 
   useEffect(() => {
     if (categoryParam) {
-      // Find category by matching the full name or part of it
-      const matchedCategory = categories.find(cat => 
-        cat.name.toLowerCase().includes(categoryParam.toLowerCase()) ||
-        categoryParam.toLowerCase().includes(cat.name.toLowerCase())
+      const normalizedParam = normalizeCategoryName(categoryParam);
+      const matchedCategory = categories.find((cat) =>
+        normalizeCategoryName(cat.name).includes(normalizedParam) ||
+        normalizedParam.includes(normalizeCategoryName(cat.name))
       );
       if (matchedCategory) {
         setSelectedCategory(matchedCategory.id);
       }
+    } else {
+      setSelectedCategory('all');
     }
-  }, [categoryParam]);
+  }, [categoryParam, categories]);
 
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(p =>
-        p.category.toLowerCase().includes(selectedCategory.toLowerCase())
+      const activeCategory = categories.find((category) => category.id === selectedCategory);
+      const normalizedActiveCategory = normalizeCategoryName(activeCategory?.name ?? '');
+
+      filtered = filtered.filter((product) =>
+        normalizeCategoryName(product.category) === normalizedActiveCategory
       );
+    }
+
+    if (searchQuery) {
+      const normalizedQuery = searchQuery.toLowerCase();
+
+      filtered = filtered.filter((product) => {
+        const specificationText = Object.entries(product.specifications ?? {})
+          .flatMap(([key, value]) => [key, value])
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          product.name.toLowerCase().includes(normalizedQuery) ||
+          product.category.toLowerCase().includes(normalizedQuery) ||
+          (product.description ?? '').toLowerCase().includes(normalizedQuery) ||
+          specificationText.includes(normalizedQuery)
+        );
+      });
     }
 
     // Sort
@@ -53,21 +82,42 @@ export function Products() {
     }
 
     return filtered;
-  }, [selectedCategory, sortBy]);
+  }, [categories, products, searchQuery, selectedCategory, sortBy]);
+
+  const handleCategoryChange = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (categoryId === 'all') {
+      nextParams.delete('category');
+    } else {
+      const category = categories.find((item) => item.id === categoryId);
+      if (category) {
+        nextParams.set('category', category.name);
+      }
+    }
+
+    setSearchParams(nextParams);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Equipment Catalog</h1>
-          <p className="text-gray-600">Browse our complete selection of oil & gas equipment</p>
+          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-4xl">Equipment Catalog</h1>
+          <p className="text-gray-600">
+            {searchQuery
+              ? `Showing results for "${searchQuery}"`
+              : 'Browse our complete selection of oil & gas equipment'}
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Filters Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-24">
+            <div className="rounded-lg bg-white p-6 shadow-sm lg:sticky lg:top-24">
               <div className="flex items-center gap-2 mb-6">
                 <Filter className="w-5 h-5 text-orange-500" />
                 <h2 className="font-semibold text-gray-900">Filters</h2>
@@ -80,7 +130,7 @@ export function Products() {
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
-                      onClick={() => setSelectedCategory(cat.id)}
+                      onClick={() => handleCategoryChange(cat.id)}
                       className={`w-full text-left px-3 py-2 rounded transition ${
                         selectedCategory === cat.id
                           ? 'bg-orange-500 text-white'
@@ -118,7 +168,12 @@ export function Products() {
             <div className="mb-4 text-gray-600">
               Showing {filteredProducts.length} products
             </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProducts.length === 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-600">
+                No products matched your search. Try a different keyword or clear the category filter.
+              </div>
+            )}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition group">
                   <Link to={`/product/${product.id}`} className="block">

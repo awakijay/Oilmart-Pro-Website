@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router';
-import { LayoutDashboard, Package, ShoppingBag, LogOut, Users, BarChart3, FileText, Home } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, LogOut, Users, BarChart3, FileText, Home, MessageCircle } from 'lucide-react';
+import { BrandLogo } from '../../components/BrandLogo';
+import { useChat } from '../../context/ChatContext';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { unreadForAdmin } = useChat();
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('admin_logged_in');
@@ -22,6 +25,7 @@ export function AdminDashboard() {
     { icon: LayoutDashboard, label: 'Overview', path: '/admin/dashboard' },
     { icon: Package, label: 'Products', path: '/admin/dashboard/products' },
     { icon: ShoppingBag, label: 'Orders', path: '/admin/dashboard/orders' },
+    { icon: MessageCircle, label: 'Chats', path: '/admin/dashboard/chats' },
     { icon: Users, label: 'Customers', path: '/admin/dashboard/customers' },
     { icon: FileText, label: 'Blog Posts', path: '/admin/dashboard/blog' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/dashboard/analytics' },
@@ -30,53 +34,58 @@ export function AdminDashboard() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 lg:flex">
       {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-white flex flex-col">
-        <div className="p-6">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold">OMP</span>
-            </div>
-            <div>
+      <div className="bg-gray-900 text-white lg:flex lg:w-64 lg:flex-col">
+        <div className="p-4 sm:p-6">
+          <div className="mb-6 flex items-center gap-2 lg:mb-8">
+            <BrandLogo padded imageClassName="h-7" />
+            {/* <div>
               <div className="font-bold">Oil Mart Pro</div>
               <div className="text-xs text-gray-400">Admin Panel</div>
-            </div>
+            </div> */}
           </div>
 
-          <nav className="space-y-2">
+          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1 lg:space-y-2">
             {menuItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 transition ${
                   isActive(item.path)
                     ? 'bg-orange-500 text-white'
                     : 'text-gray-300 hover:bg-gray-800'
                 }`}
               >
                 <item.icon className="w-5 h-5" />
-                <span>{item.label}</span>
+                <span className="truncate">{item.label}</span>
+                {item.label === 'Chats' && unreadForAdmin > 0 && (
+                  <span className="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-orange-500">
+                    {unreadForAdmin}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
         </div>
 
-        <div className="mt-auto p-6 border-t border-gray-800 space-y-2">
-          <Link
-            to="/"
-            className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition w-full"
-          >
-            <Home className="w-5 h-5" />
-            <span>Back to Website</span>
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition w-full"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
+        <div className="border-t border-gray-800 p-4 sm:p-6">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <Link
+              to="/"
+              className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-300 transition hover:bg-gray-800"
+            >
+              <Home className="w-5 h-5" />
+              <span>Back to Website</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-300 transition hover:bg-gray-800"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -84,6 +93,18 @@ export function AdminDashboard() {
       <div className="flex-1 overflow-auto">
         <Outlet />
       </div>
+      <Link
+        to="/admin/dashboard/chats"
+        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-white shadow-xl transition hover:bg-orange-600 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
+        aria-label="Open admin chats"
+      >
+        <MessageCircle className="w-6 h-6" />
+        {unreadForAdmin > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-1 text-xs font-semibold text-orange-500">
+            {unreadForAdmin}
+          </span>
+        )}
+      </Link>
     </div>
   );
 }
