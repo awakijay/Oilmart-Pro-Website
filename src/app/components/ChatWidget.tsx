@@ -44,6 +44,11 @@ export function ChatWidget() {
           </div>
 
           <div className="max-h-[55vh] space-y-3 overflow-y-auto bg-gray-50 p-3 sm:max-h-80 sm:p-4">
+            {messages.length === 0 && (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                Ask about Oilmart Pro services, checkout, quotes, or send an order number like ORD-1234567890 to track it.
+              </div>
+            )}
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -53,10 +58,13 @@ export function ChatWidget() {
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                     message.sender === 'user'
                       ? 'bg-orange-500 text-white'
-                      : 'border border-gray-200 bg-white text-gray-900'
+                      : message.sender === 'bot'
+                        ? 'border border-blue-100 bg-blue-50 text-blue-950'
+                        : 'border border-gray-200 bg-white text-gray-900'
                   }`}
                 >
-                  <p>{message.text}</p>
+                  {message.sender === 'bot' && <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Oilmart Assistant</p>}
+                  <p className="whitespace-pre-line">{message.text}</p>
                   <p className={`mt-1 text-[11px] ${message.sender === 'user' ? 'text-orange-100' : 'text-gray-400'}`}>
                     {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
@@ -71,7 +79,7 @@ export function ChatWidget() {
                 type="text"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Ask about sells, lease, or buy-for-me..."
+                placeholder="Ask or track ORD-..."
                 className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-3 text-sm focus:border-orange-500 focus:outline-none"
               />
               <button

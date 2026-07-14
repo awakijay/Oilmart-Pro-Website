@@ -24,6 +24,9 @@ export function AdminProducts() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [formProduct, setFormProduct] = useState<Partial<Product>>(defaultProduct);
   const [imageUploadError, setImageUploadError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const filteredProducts = products.filter((product) =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -37,6 +40,8 @@ export function AdminProducts() {
     setEditingProductId(null);
     setFormProduct(defaultProduct);
     setImageUploadError('');
+    setFormError('');
+    setIsSaving(false);
   };
 
   const normalizePrice = (value: string) => {
@@ -57,40 +62,62 @@ export function AdminProducts() {
     setFormProduct((current) => ({ ...current, rating: normalizeRating(value) }));
   };
 
-  const handleAddProduct = (e: React.FormEvent) => {
+  const getActionErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    addProduct({
-      id: Date.now().toString(),
-      name: formProduct.name || '',
-      category: formProduct.category || 'Well Control',
-      price: formProduct.price && formProduct.price !== NAIRA ? formProduct.price : `${NAIRA}0`,
-      image: formProduct.image || 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-      rating: normalizeRating(formProduct.rating),
-      orders: formProduct.orders || '0+',
-      description: formProduct.description || '',
-      specifications: {},
-    });
-    resetForm();
+    setFormError('');
+    setIsSaving(true);
+
+    try {
+      await addProduct({
+        id: Date.now().toString(),
+        name: formProduct.name || '',
+        category: formProduct.category || 'Well Control',
+        price: formProduct.price && formProduct.price !== NAIRA ? formProduct.price : `${NAIRA}0`,
+        image: formProduct.image || 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+        rating: normalizeRating(formProduct.rating),
+        orders: formProduct.orders || '0+',
+        description: formProduct.description || '',
+        specifications: {},
+      });
+      resetForm();
+    } catch (error) {
+      setFormError(getActionErrorMessage(error, 'Unable to save product. Please try again.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleUpdateProduct = (e: React.FormEvent) => {
+  const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
-    updateProduct(editingProduct.id, {
-      name: formProduct.name || editingProduct.name,
-      category: formProduct.category || editingProduct.category,
-      price: formProduct.price && formProduct.price !== NAIRA ? formProduct.price : editingProduct.price,
-      image: formProduct.image || editingProduct.image,
-      rating: normalizeRating(formProduct.rating, editingProduct.rating),
-      orders: formProduct.orders || editingProduct.orders,
-      description: formProduct.description || editingProduct.description,
-    });
-    resetForm();
+    setFormError('');
+    setIsSaving(true);
+
+    try {
+      await updateProduct(editingProduct.id, {
+        name: formProduct.name || editingProduct.name,
+        category: formProduct.category || editingProduct.category,
+        price: formProduct.price && formProduct.price !== NAIRA ? formProduct.price : editingProduct.price,
+        image: formProduct.image || editingProduct.image,
+        rating: normalizeRating(formProduct.rating, editingProduct.rating),
+        orders: formProduct.orders || editingProduct.orders,
+        description: formProduct.description || editingProduct.description,
+      });
+      resetForm();
+    } catch (error) {
+      setFormError(getActionErrorMessage(error, 'Unable to update product. Please try again.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openEditModal = (product: Product) => {
     setEditingProductId(product.id);
     setImageUploadError('');
+    setFormError('');
     setFormProduct({
       name: product.name,
       category: product.category,
@@ -101,6 +128,16 @@ export function AdminProducts() {
       description: product.description,
     });
     setShowModal(true);
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    setActionError('');
+
+    try {
+      await deleteProduct(productId);
+    } catch (error) {
+      setActionError(getActionErrorMessage(error, 'Unable to delete product. Please try again.'));
+    }
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,6 +167,7 @@ export function AdminProducts() {
             setEditingProductId(null);
             setFormProduct(defaultProduct);
             setImageUploadError('');
+            setFormError('');
             setShowModal(true);
           }}
           className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-3 text-white transition hover:bg-orange-600"
@@ -151,6 +189,12 @@ export function AdminProducts() {
           />
         </div>
       </div>
+
+      {actionError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {actionError}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -183,7 +227,7 @@ export function AdminProducts() {
                       <button onClick={() => openEditModal(product)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition">
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deleteProduct(product.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition">
+                      <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -200,6 +244,11 @@ export function AdminProducts() {
           <div className="bg-white rounded-lg max-w-2xl w-full p-5 sm:p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingProduct ? 'Edit Product' : 'Add New Product'}</h2>
             <form className="space-y-4" onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct}>
+              {formError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {formError}
+                </div>
+              )}
               <input value={formProduct.name} onChange={(e) => setFormProduct({ ...formProduct, name: e.target.value })} placeholder="Product name" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
               <select value={formProduct.category} onChange={(e) => setFormProduct({ ...formProduct, category: e.target.value })} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
                 <option>Well Control</option>
@@ -267,8 +316,10 @@ export function AdminProducts() {
               </div>
               <textarea value={formProduct.description} onChange={(e) => setFormProduct({ ...formProduct, description: e.target.value })} placeholder="Description" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
               <div className="flex flex-col gap-4 sm:flex-row">
-                <button type="button" onClick={resetForm} className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">{editingProduct ? 'Save Changes' : 'Add Product'}</button>
+                <button type="button" onClick={resetForm} disabled={isSaving} className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+                <button type="submit" disabled={isSaving} className="flex-1 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition disabled:cursor-not-allowed disabled:bg-gray-300">
+                  {isSaving ? 'Saving...' : editingProduct ? 'Save Changes' : 'Add Product'}
+                </button>
               </div>
             </form>
           </div>

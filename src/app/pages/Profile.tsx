@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { User, Package, MessageSquare, Settings, Send, Clock, CheckCircle, Truck, Camera } from 'lucide-react';
 import { formatNaira } from '../utils/currency';
 import { useAuth } from '../context/AuthContext';
-import { useChat } from '../context/ChatContext';
+import { type ChatThread, useChat } from '../context/ChatContext';
 import { useAppData } from '../context/AppDataContext';
 import { IMAGE_ACCEPT, imageFileToDataUrl } from '../utils/imageUpload';
 
@@ -17,6 +17,7 @@ export function Profile() {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [photoSaving, setPhotoSaving] = useState(false);
+  const [profileThread, setProfileThread] = useState<ChatThread | null>(null);
   const [settingsForm, setSettingsForm] = useState({
     firstName: '',
     lastName: '',
@@ -40,7 +41,6 @@ export function Profile() {
   }, [user]);
 
   const displayName = useMemo(() => user ? `${user.firstName} ${user.lastName}` : '', [user]);
-  const profileThread = user ? getOrCreateAccountThread(user.email, displayName) : null;
   const messages = profileThread ? getMessagesForThread(profileThread.id) : [];
   const orders = useMemo(() => {
     if (!user) return [];
@@ -55,11 +55,24 @@ export function Profile() {
         items: order.product.split(',').filter(Boolean).length,
         product: order.product,
         operationType: order.operationType,
+        trackingLocation: order.trackingLocation,
+        trackingUpdate: order.trackingUpdate,
+        estimatedDelivery: order.estimatedDelivery,
+        trackingUpdatedAt: order.trackingUpdatedAt,
       }));
   }, [allOrders, user]);
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? null;
   const activeRentals = orders.filter((order) => order.operationType.includes('LEASE') && !['Completed', 'Cancelled', 'Rejected'].includes(order.status)).length;
   const completedOrders = orders.filter((order) => ['Completed', 'Accepted', 'Approved'].includes(order.status)).length;
+
+  useEffect(() => {
+    if (!user) {
+      setProfileThread(null);
+      return;
+    }
+
+    setProfileThread(getOrCreateAccountThread(user.email, displayName));
+  }, [displayName, user?.email]);
 
   useEffect(() => {
     if (activeTab === 'chat' && profileThread) {
@@ -314,10 +327,16 @@ export function Profile() {
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Chat with Admin</h2>
                   <div className="border border-gray-200 rounded-lg overflow-hidden">
                     <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                      {messages.length === 0 && (
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                          Ask about Oilmart Pro services or send an order number like ORD-1234567890 to track it.
+                        </div>
+                      )}
                       {messages.map((message) => (
                         <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'user' ? 'bg-orange-500 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
-                            <p className="text-sm">{message.text}</p>
+                          <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'user' ? 'bg-orange-500 text-white' : message.sender === 'bot' ? 'border border-blue-100 bg-blue-50 text-blue-950' : 'bg-white text-gray-900 border border-gray-200'}`}>
+                            {message.sender === 'bot' && <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Oilmart Assistant</p>}
+                            <p className="whitespace-pre-line text-sm">{message.text}</p>
                             <p className={`text-xs mt-1 ${message.sender === 'user' ? 'text-orange-100' : 'text-gray-500'}`}>
                               {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
@@ -327,7 +346,7 @@ export function Profile() {
                     </div>
                     <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200">
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="Type your message..." className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+                        <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="Ask or track ORD-..." className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
                         <button type="submit" className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-2 sm:justify-start">
                           <Send className="w-5 h-5" />
                           Send
@@ -439,6 +458,27 @@ export function Profile() {
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><span>Items</span><span className="font-semibold text-gray-900">{selectedOrder.items}</span></div>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"><span>Products</span><span className="font-semibold text-gray-900 sm:max-w-[60%] sm:text-right">{selectedOrder.product}</span></div>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><span>Total</span><span className="font-semibold text-gray-900">{selectedOrder.total}</span></div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <p className="mb-3 text-sm font-semibold text-blue-900">Tracking</p>
+                <div className="space-y-3 text-sm">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <span>Current Location</span>
+                    <span className="font-semibold text-gray-900 sm:text-right">{selectedOrder.trackingLocation || 'Awaiting admin update'}</span>
+                  </div>
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <span>Latest Update</span>
+                    <span className="font-semibold text-gray-900 sm:max-w-[60%] sm:text-right">{selectedOrder.trackingUpdate || 'No tracking note yet'}</span>
+                  </div>
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <span>Estimated Delivery</span>
+                    <span className="font-semibold text-gray-900 sm:text-right">{selectedOrder.estimatedDelivery || 'Pending confirmation'}</span>
+                  </div>
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <span>Last Updated</span>
+                    <span className="font-semibold text-gray-900 sm:text-right">{selectedOrder.trackingUpdatedAt ? new Date(selectedOrder.trackingUpdatedAt).toLocaleString() : 'Not updated yet'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

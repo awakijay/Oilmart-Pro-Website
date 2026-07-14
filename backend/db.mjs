@@ -130,6 +130,10 @@ export async function initializeDatabase() {
       status TEXT NOT NULL,
       date TEXT NOT NULL,
       operation_type TEXT NOT NULL,
+      tracking_location TEXT NOT NULL DEFAULT '',
+      tracking_update TEXT NOT NULL DEFAULT '',
+      estimated_delivery TEXT NOT NULL DEFAULT '',
+      tracking_updated_at TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -158,7 +162,7 @@ export async function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
-      sender TEXT NOT NULL CHECK (sender IN ('user', 'admin')),
+      sender TEXT NOT NULL CHECK (sender IN ('user', 'admin', 'bot')),
       text TEXT NOT NULL,
       timestamp TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -171,6 +175,12 @@ export async function initializeDatabase() {
 
   await query(`ALTER TABLE users ALTER COLUMN avatar TYPE TEXT`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_location TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_update TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS estimated_delivery TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE chat_messages DROP CONSTRAINT IF EXISTS chat_messages_sender_check`);
+  await query(`ALTER TABLE chat_messages ADD CONSTRAINT chat_messages_sender_check CHECK (sender IN ('user', 'admin', 'bot'))`);
 
   await query(`INSERT INTO chat_threads (id, label, source) VALUES ('guest-support', 'Website Support Inbox', 'guest') ON CONFLICT (id) DO NOTHING`);
 

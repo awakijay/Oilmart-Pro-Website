@@ -7,3 +7,20 @@ Port 5173 is in use, trying another one...
   [32m[1mVITE[22m v6.3.5[39m  [2mready in [0m[1m1806[22m[2m[0m ms[22m
 
   [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5174[22m/[39m
+[2m10:12:08 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\ProductDetail.tsx, /src/styles/index.css[22m
+[2m10:22:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/AppDataContext.tsx, /src/styles/index.css[22m
+[2m10:22:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/AppDataContext.tsx, /src/styles/index.css[22m
+[2m10:23:05 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/AppDataContext.tsx, /src/styles/index.css[22m
+[2m10:23:51 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\admin\AdminProducts.tsx, /src/styles/index.css[22m
+[2m10:24:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\admin\AdminBlog.tsx, /src/styles/index.css[22m
+[2m11:14:32 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/AppDataContext.tsx, /src/styles/index.css[22m
+[2m11:14:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\Checkout.tsx, /src/styles/index.css[22m
+[2m11:15:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/ChatContext.tsx, /src/styles/index.css[22m
+[2m11:15:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\components\ChatWidget.tsx, /src/styles/index.css[22m
+[2m11:16:12 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\admin\AdminChats.tsx, /src/styles/index.css[22m
+[2m11:16:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\Profile.tsx, /src/styles/index.css[22m
+[2m11:17:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\admin\AdminOrders.tsx, /src/styles/index.css[22m
+[2m11:35:33 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/ChatContext.tsx, /src/styles/index.css[22m
+[2m11:35:33 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/context/ChatContext.tsx, /src/styles/index.css[22m
+[2m11:35:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\Profile.tsx, /src/styles/index.css[22m
+[2m11:36:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\Users\HP\Desktop\Oilmart Pro Website\src\app\pages\admin\AdminChats.tsx, /src/styles/index.css[22m

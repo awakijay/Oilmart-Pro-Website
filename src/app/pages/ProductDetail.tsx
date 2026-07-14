@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ShoppingCart, ArrowLeft, Truck, Shield, Clock, Star, MessageCircle } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import productNotFoundIllustration from '../assets/product-not-found.jpg';
 import { OperationType, useCart } from '../context/CartContext';
 import { useAppData } from '../context/AppDataContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -38,8 +39,13 @@ export function ProductDetail() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="text-center">
+          <img
+            src={productNotFoundIllustration}
+            alt="Product not found illustration"
+            className="mx-auto mb-6 h-auto w-44 max-w-full sm:w-56"
+          />
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Product not found</h1>
           <Link to="/products" className="text-orange-500 hover:text-orange-600">
             Back to Products

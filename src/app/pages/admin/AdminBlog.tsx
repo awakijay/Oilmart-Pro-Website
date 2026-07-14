@@ -20,6 +20,9 @@ export function AdminBlog() {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [formPost, setFormPost] = useState<Partial<BlogPost>>(defaultPost);
   const [imageUploadError, setImageUploadError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const filteredPosts = posts.filter((post) =>
     post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -34,43 +37,77 @@ export function AdminBlog() {
     setEditingPostId(null);
     setFormPost(defaultPost);
     setImageUploadError('');
+    setFormError('');
+    setIsSaving(false);
   };
 
-  const handleAddPost = (e: React.FormEvent) => {
+  const getActionErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
+  const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    addBlogPost({
-      id: Date.now().toString(),
-      title: formPost.title || '',
-      excerpt: formPost.excerpt || '',
-      content: formPost.content || '',
-      image: formPost.image || 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-      author: 'Admin',
-      date: new Date().toISOString().split('T')[0],
-      status: formPost.status || 'draft',
-      category: formPost.category || 'Technical',
-    });
-    resetForm();
+    setFormError('');
+    setIsSaving(true);
+
+    try {
+      await addBlogPost({
+        id: Date.now().toString(),
+        title: formPost.title || '',
+        excerpt: formPost.excerpt || '',
+        content: formPost.content || '',
+        image: formPost.image || 'https://images.unsplash.com/photo-1629540946404-ebe133e99f49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+        author: 'Admin',
+        date: new Date().toISOString().split('T')[0],
+        status: formPost.status || 'draft',
+        category: formPost.category || 'Technical',
+      });
+      resetForm();
+    } catch (error) {
+      setFormError(getActionErrorMessage(error, 'Unable to save blog post. Please try again.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleUpdatePost = (e: React.FormEvent) => {
+  const handleUpdatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPost) return;
-    updateBlogPost(editingPost.id, {
-      title: formPost.title || editingPost.title,
-      excerpt: formPost.excerpt || editingPost.excerpt,
-      content: formPost.content || editingPost.content,
-      image: formPost.image || editingPost.image,
-      category: formPost.category || editingPost.category,
-      status: formPost.status || editingPost.status,
-    });
-    resetForm();
+    setFormError('');
+    setIsSaving(true);
+
+    try {
+      await updateBlogPost(editingPost.id, {
+        title: formPost.title || editingPost.title,
+        excerpt: formPost.excerpt || editingPost.excerpt,
+        content: formPost.content || editingPost.content,
+        image: formPost.image || editingPost.image,
+        category: formPost.category || editingPost.category,
+        status: formPost.status || editingPost.status,
+      });
+      resetForm();
+    } catch (error) {
+      setFormError(getActionErrorMessage(error, 'Unable to update blog post. Please try again.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openEditModal = (post: BlogPost) => {
     setEditingPostId(post.id);
     setImageUploadError('');
+    setFormError('');
     setFormPost(post);
     setShowModal(true);
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    setActionError('');
+
+    try {
+      await deleteBlogPost(postId);
+    } catch (error) {
+      setActionError(getActionErrorMessage(error, 'Unable to delete blog post. Please try again.'));
+    }
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,7 +132,7 @@ export function AdminBlog() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Blog Management</h1>
           <p className="text-gray-600">Create and manage content that stays available across admin sessions.</p>
         </div>
-        <button onClick={() => { setEditingPostId(null); setFormPost(defaultPost); setImageUploadError(''); setShowModal(true); }} className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-3 text-white transition hover:bg-orange-600">
+        <button onClick={() => { setEditingPostId(null); setFormPost(defaultPost); setImageUploadError(''); setFormError(''); setShowModal(true); }} className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-3 text-white transition hover:bg-orange-600">
           <Plus className="w-5 h-5" />
           Add Blog Post
         </button>
@@ -107,6 +144,12 @@ export function AdminBlog() {
           <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search blog posts..." className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
         </div>
       </div>
+
+      {actionError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {actionError}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredPosts.map((post) => (
@@ -126,7 +169,7 @@ export function AdminBlog() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <button onClick={() => setViewingPostId(post.id)} className="flex-1 flex items-center justify-center gap-2 p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition"><Eye className="w-4 h-4" /><span className="text-sm">View</span></button>
                 <button onClick={() => openEditModal(post)} className="flex-1 flex items-center justify-center gap-2 p-2 text-green-500 hover:bg-green-50 rounded-lg transition"><Edit2 className="w-4 h-4" /><span className="text-sm">Edit</span></button>
-                <button onClick={() => deleteBlogPost(post.id)} className="flex-1 flex items-center justify-center gap-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="text-sm">Delete</span></button>
+                <button onClick={() => handleDeletePost(post.id)} className="flex-1 flex items-center justify-center gap-2 p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="text-sm">Delete</span></button>
               </div>
             </div>
           </div>
@@ -138,6 +181,11 @@ export function AdminBlog() {
           <div className="my-8 w-full max-w-3xl rounded-lg bg-white p-5 sm:p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingPost ? 'Edit Blog Post' : 'Add New Blog Post'}</h2>
             <form onSubmit={editingPost ? handleUpdatePost : handleAddPost} className="space-y-4">
+              {formError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {formError}
+                </div>
+              )}
               <input value={formPost.title} onChange={(e) => setFormPost({ ...formPost, title: e.target.value })} required placeholder="Title" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
               <textarea value={formPost.excerpt} onChange={(e) => setFormPost({ ...formPost, excerpt: e.target.value })} required rows={2} placeholder="Excerpt" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
               <textarea value={formPost.content} onChange={(e) => setFormPost({ ...formPost, content: e.target.value })} required rows={6} placeholder="Content" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
@@ -172,8 +220,10 @@ export function AdminBlog() {
                 </select>
               </div>
               <div className="flex flex-col gap-4 sm:flex-row">
-                <button type="button" onClick={resetForm} className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">{editingPost ? 'Save Changes' : 'Add Blog Post'}</button>
+                <button type="button" onClick={resetForm} disabled={isSaving} className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+                <button type="submit" disabled={isSaving} className="flex-1 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition disabled:cursor-not-allowed disabled:bg-gray-300">
+                  {isSaving ? 'Saving...' : editingPost ? 'Save Changes' : 'Add Blog Post'}
+                </button>
               </div>
             </form>
           </div>

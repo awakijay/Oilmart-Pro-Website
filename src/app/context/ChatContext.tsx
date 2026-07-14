@@ -13,9 +13,21 @@ export interface ChatThread {
 export interface ChatMessage {
   id: string;
   threadId: string;
-  sender: 'user' | 'admin';
+  sender: 'user' | 'admin' | 'bot';
   text: string;
   timestamp: string;
+}
+
+interface OrderTrackingInfo {
+  id: string;
+  status: string;
+  date: string;
+  product: string;
+  operationType: string;
+  trackingLocation: string;
+  trackingUpdate: string;
+  estimatedDelivery: string;
+  trackingUpdatedAt: string;
 }
 
 interface SendUserMessageOptions {
@@ -60,6 +72,93 @@ const starterMessages: ChatMessage[] = [];
 
 function getAccountThreadId(userEmail: string) {
   return `account:${userEmail.toLowerCase()}`;
+}
+
+function extractOrderId(text: string) {
+  return text.match(/\b(?:ORD|OMP)-[A-Z0-9-]+\b/i)?.[0].toUpperCase() ?? null;
+}
+
+function formatTrackingTime(value: string) {
+  if (!value) return 'Not updated yet';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function formatTrackingReply(tracking: OrderTrackingInfo) {
+  return [
+    `Order ${tracking.id} is currently ${tracking.status}.`,
+    `Location: ${tracking.trackingLocation || 'Awaiting admin location update'}.`,
+    `Update: ${tracking.trackingUpdate || 'No tracking note has been added yet.'}`,
+    `Estimated delivery: ${tracking.estimatedDelivery || 'Pending admin confirmation'}.`,
+    `Last updated: ${formatTrackingTime(tracking.trackingUpdatedAt)}.`,
+  ].join('\n');
+}
+
+function getWebsiteHelpReply(text: string) {
+  const lower = text.toLowerCase();
+
+  if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(lower)) {
+    return 'Hello. I am the Oilmart Pro assistant. I can help with products, sells, lease, buy-for-me requests, checkout, quotes, accounts, blog posts, contact details, and order tracking. Send your order number like ORD-1234567890 to track an order.';
+  }
+
+  if (lower.includes('track') || lower.includes('order number') || lower.includes('where is my order') || lower.includes('delivery')) {
+    return 'To track an order, send the order number exactly as shown after checkout, for example: ORD-1234567890. I will check the current status, location, latest update, and estimated delivery.';
+  }
+
+  if (lower.includes('lease') || lower.includes('rent') || lower.includes('rental')) {
+    return 'For LEASE requests, open a product, choose the lease option, add it to cart, and submit checkout. The admin team can review availability, duration, mobilization, and rental terms from your order details.';
+  }
+
+  if (lower.includes('buy for me') || lower.includes('procure') || lower.includes('procurement')) {
+    return 'For BUY FOR ME, choose the buy-for-me option on a product and complete checkout. Oilmart Pro will review the request, confirm specifications, and follow up with sourcing or procurement details.';
+  }
+
+  if (lower.includes('sell') || lower.includes('sales') || lower.includes('buy equipment') || lower.includes('purchase')) {
+    return 'For SELLS, browse Products, open the equipment you need, choose the sells option, add it to cart, and complete checkout. Your order will appear in your profile and in the admin order panel.';
+  }
+
+  if (lower.includes('quote') || lower.includes('pricing') || lower.includes('price')) {
+    return 'You can request pricing from the Contact page or by checking out with the selected equipment. Quotes and order requests are reviewed by the admin team before final approval.';
+  }
+
+  if (lower.includes('account') || lower.includes('profile') || lower.includes('login') || lower.includes('sign in')) {
+    return 'Create or sign in to an account to place orders, view your profile, see order history, and keep a dedicated chat thread with the admin team.';
+  }
+
+  if (lower.includes('payment') || lower.includes('checkout') || lower.includes('cart')) {
+    return 'Add products to cart, choose your operation type, then complete checkout from the cart page. Checkout supports card, wire transfer, and purchase order options in the current flow.';
+  }
+
+  if (lower.includes('blog') || lower.includes('article') || lower.includes('news')) {
+    return 'Published blog posts appear on the homepage and blog pages. Draft posts stay hidden until an admin publishes them.';
+  }
+
+  if (lower.includes('contact') || lower.includes('support') || lower.includes('phone') || lower.includes('email')) {
+    return 'You can use this chat or the Contact page for support, sales, quote, leasing, or procurement questions. I will keep helping until an admin joins this conversation.';
+  }
+
+  return 'I can help with Oilmart Pro products, sells, lease, buy-for-me, checkout, quotes, accounts, blog posts, contact, and order tracking. For tracking, send your order number like ORD-1234567890. An admin can still reply here when they are available.';
+}
+
+async function buildAutomatedReply(text: string) {
+  const orderId = extractOrderId(text);
+
+  if (orderId) {
+    try {
+      const tracking = await apiRequest<OrderTrackingInfo>(`/order-tracking/${encodeURIComponent(orderId)}`);
+      return formatTrackingReply(tracking);
+    } catch {
+      return `I could not find tracking details for ${orderId}. Please check the order number from checkout or your profile order history.`;
+    }
+  }
+
+  return getWebsiteHelpReply(text);
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -178,9 +277,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CHAT_UNREAD_ADMIN_KEY, JSON.stringify(unreadForAdminByThread));
   }, [unreadForAdminByThread]);
 
+  const createAccountThread = (userEmail: string, userName: string, source: 'guest' | 'account' = 'account') => {
+    const threadId = getAccountThreadId(userEmail);
+    const nextThread: ChatThread = {
+      id: threadId,
+      label: userName,
+      source,
+      userEmail,
+      userName,
+    };
+
+    setThreads((prev) => [nextThread, ...prev.filter((thread) => thread.id !== threadId)]);
+    void apiRequest<ChatThread>('/chat/threads', {
+      method: 'POST',
+      body: nextThread,
+      auth: true,
+      token: getStoredAuthToken(),
+    });
+
+    return nextThread;
+  };
+
   const ensureThread = (options?: SendUserMessageOptions) => {
     if (options?.threadId) {
-      return threads.find((thread) => thread.id === options.threadId) ?? guestThread;
+      const existingThread = threads.find((thread) => thread.id === options.threadId);
+
+      if (existingThread) {
+        return existingThread;
+      }
+
+      if (options.threadId === guestThread.id) {
+        return guestThread;
+      }
+
+      if (options.userEmail && options.userName && options.threadId === getAccountThreadId(options.userEmail)) {
+        return createAccountThread(options.userEmail, options.userName, options.source ?? 'account');
+      }
+
+      return guestThread;
     }
 
     if (options?.userEmail && options?.userName) {
@@ -191,22 +325,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return existingThread;
       }
 
-      const nextThread: ChatThread = {
-        id: threadId,
-        label: options.userName,
-        source: options.source ?? 'account',
-        userEmail: options.userEmail,
-        userName: options.userName,
-      };
-
-      setThreads((prev) => [nextThread, ...prev.filter((thread) => thread.id !== threadId)]);
-      void apiRequest<ChatThread>('/chat/threads', {
-        method: 'POST',
-        body: nextThread,
-        auth: true,
-        token: getStoredAuthToken(),
-      });
-      return nextThread;
+      return createAccountThread(options.userEmail, options.userName, options.source ?? 'account');
     }
 
     return guestThread;
@@ -217,6 +336,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!normalizedText) return;
 
     const thread = ensureThread(options);
+    const adminHasJoined = messages.some((message) => message.threadId === thread.id && message.sender === 'admin');
     const nextMessage = {
       id: `${Date.now()}-user`,
       threadId: thread.id,
@@ -232,6 +352,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ...(thread.id === guestThread.id ? {} : { auth: true, token: getStoredAuthToken() }),
     });
     setUnreadForAdminByThread((prev) => ({ ...prev, [thread.id]: (prev[thread.id] ?? 0) + 1 }));
+
+    if (!adminHasJoined) {
+      void sendAutomatedReply(thread.id, normalizedText);
+    }
+  };
+
+  const sendAutomatedReply = async (threadId: string, userText: string) => {
+    const replyText = await buildAutomatedReply(userText);
+    const nextMessage = {
+      id: `${Date.now()}-bot-${Math.random().toString(36).slice(2, 8)}`,
+      threadId,
+      sender: 'bot' as const,
+      text: replyText,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, nextMessage]);
+    void apiRequest<ChatMessage>('/chat/messages', {
+      method: 'POST',
+      body: nextMessage,
+      ...(threadId === guestThread.id ? {} : { auth: true, token: getStoredAuthToken() }),
+    });
+    setUnreadForUserByThread((prev) => ({ ...prev, [threadId]: (prev[threadId] ?? 0) + 1 }));
   };
 
   const sendAdminMessage = (text: string, threadId: string) => {
@@ -263,21 +406,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const existingThread = threads.find((thread) => thread.id === threadId);
     if (existingThread) return existingThread;
 
-    const nextThread: ChatThread = {
-      id: threadId,
-      label: userName,
-      source: 'account',
-      userEmail,
-      userName,
-    };
-    setThreads((prev) => [nextThread, ...prev.filter((thread) => thread.id !== threadId)]);
-    void apiRequest<ChatThread>('/chat/threads', {
-      method: 'POST',
-      body: nextThread,
-      auth: true,
-      token: getStoredAuthToken(),
-    });
-    return nextThread;
+    return createAccountThread(userEmail, userName);
   };
 
   const unreadForAdmin = Object.values(unreadForAdminByThread).reduce((sum, count) => sum + count, 0);

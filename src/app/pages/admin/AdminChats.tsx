@@ -8,6 +8,7 @@ export function AdminChats() {
   const [selectedThreadId, setSelectedThreadId] = useState(guestThreadId);
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? threads[0];
   const messages = selectedThread ? getMessagesForThread(selectedThread.id) : [];
+  const adminHasJoined = messages.some((message) => message.sender === 'admin');
 
   useEffect(() => {
     if (selectedThreadId) {
@@ -74,11 +75,22 @@ export function AdminChats() {
 
         <div>
           <div className="border-b border-gray-200 px-4 py-4 sm:px-6 sm:py-5">
-            <div className="font-semibold text-gray-900">{selectedThread?.label ?? 'Conversation'}</div>
-            <div className="text-sm text-gray-500">
-              {selectedThread?.source === 'account'
-                ? `Replying to ${selectedThread.userEmail}`
-                : 'Shared live thread from the storefront chat FAB'}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="font-semibold text-gray-900">{selectedThread?.label ?? 'Conversation'}</div>
+                <div className="text-sm text-gray-500">
+                  {selectedThread?.source === 'account'
+                    ? `Replying to ${selectedThread.userEmail}`
+                    : 'Shared live thread from the storefront chat FAB'}
+                </div>
+              </div>
+              {selectedThread && (
+                <span className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                  adminHasJoined ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {adminHasJoined ? 'Admin joined' : 'Bot active'}
+                </span>
+              )}
             </div>
           </div>
 
@@ -92,13 +104,15 @@ export function AdminChats() {
                   className={`max-w-[90%] rounded-2xl px-4 py-3 sm:max-w-2xl ${
                     message.sender === 'admin'
                       ? 'bg-gray-900 text-white'
-                      : 'border border-gray-200 bg-white text-gray-900'
+                      : message.sender === 'bot'
+                        ? 'border border-blue-100 bg-blue-50 text-blue-950'
+                        : 'border border-gray-200 bg-white text-gray-900'
                   }`}
                 >
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">
-                    {message.sender === 'admin' ? 'Admin Reply' : 'Customer'}
+                    {message.sender === 'admin' ? 'Admin Reply' : message.sender === 'bot' ? 'Oilmart Assistant' : 'Customer'}
                   </div>
-                  <p className="text-sm leading-relaxed">{message.text}</p>
+                  <p className="whitespace-pre-line text-sm leading-relaxed">{message.text}</p>
                   <p className={`mt-2 text-[11px] ${message.sender === 'admin' ? 'text-gray-300' : 'text-gray-400'}`}>
                     {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>

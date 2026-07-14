@@ -38,8 +38,8 @@ const configs = {
   },
   orders: {
     route: '/api/orders', table: 'orders', customerCreate: true, customerMine: true, adminRead: true, adminWrite: true,
-    row: (b) => ({ id: b.id?.toString().trim() || randomUUID(), customer: b.customer ?? '', email: b.email ?? '', product: b.product ?? '', amount: b.amount ?? '', status: b.status ?? 'Pending', date: b.date ?? new Date().toISOString().split('T')[0], operation_type: b.operationType ?? '' }),
-    api: (r) => ({ id: r.id, customer: r.customer, email: r.email, product: r.product, amount: r.amount, status: r.status, date: r.date, operationType: r.operation_type }),
+    row: (b) => ({ id: b.id?.toString().trim() || randomUUID(), customer: b.customer ?? '', email: b.email ?? '', product: b.product ?? '', amount: b.amount ?? '', status: b.status ?? 'Pending', date: b.date ?? new Date().toISOString().split('T')[0], operation_type: b.operationType ?? '', tracking_location: b.trackingLocation ?? '', tracking_update: b.trackingUpdate ?? '', estimated_delivery: b.estimatedDelivery ?? '', tracking_updated_at: b.trackingUpdatedAt ?? '' }),
+    api: (r) => ({ id: r.id, customer: r.customer, email: r.email, product: r.product, amount: r.amount, status: r.status, date: r.date, operationType: r.operation_type, trackingLocation: r.tracking_location, trackingUpdate: r.tracking_update, estimatedDelivery: r.estimated_delivery, trackingUpdatedAt: r.tracking_updated_at }),
   },
   quoteRequests: {
     route: '/api/quote-requests', table: 'quote_requests', publicCreate: true, adminRead: true, adminWrite: true,
@@ -173,6 +173,20 @@ function sanitizeUser(user) {
   return user ? { id: user.id, firstName: user.first_name, lastName: user.last_name, username: user.username, email: user.email, phone: user.phone, company: user.company, avatar: user.avatar, role: user.role } : null;
 }
 
+function publicOrderTracking(row) {
+  return {
+    id: row.id,
+    status: row.status,
+    date: row.date,
+    product: row.product,
+    operationType: row.operation_type,
+    trackingLocation: row.tracking_location,
+    trackingUpdate: row.tracking_update,
+    estimatedDelivery: row.estimated_delivery,
+    trackingUpdatedAt: row.tracking_updated_at,
+  };
+}
+
 function isRateLimited(request, suffix, limit = 10, windowMs = 15 * 60 * 1000) {
   const key = buildRateLimitKey(request, suffix), now = Date.now();
   const current = authRateLimitState.get(key) ?? { count: 0, expiresAt: now + windowMs };
@@ -289,6 +303,15 @@ async function handleUsersRoutes(request, response, pathname, origin) {
   json(response, 200, sanitizeUser(updated.rows[0]), origin); return true;
 }
 
+async function handleOrderTrackingRoute(request, response, pathname, origin) {
+  const orderId = slugFromPath(pathname, '/api/order-tracking');
+  if (!orderId) return false;
+  if (request.method !== 'GET') { methodNotAllowed(response, origin); return true; }
+  const result = await query(`SELECT * FROM orders WHERE id = $1 LIMIT 1`, [orderId.trim()]);
+  if (!result.rowCount) { notFound(response, origin); return true; }
+  json(response, 200, publicOrderTracking(result.rows[0]), origin); return true;
+}
+
 async function readRows(config, request, authState) {
   const url = new URL(request.url, 'http://localhost');
   if (config.table === 'orders') {
@@ -324,6 +347,7 @@ async function createRow(config, request, authState, body) {
   if (config.customAccess && config.table === 'chat_messages' && authState?.user.role !== 'admin') {
     const threadId = body.threadId?.toString().trim() ?? '', allowed = authState ? getAllowedCustomerThreadId(authState.user) : null;
     if (threadId !== guestThread.id && threadId !== allowed) throw new Error('FORBIDDEN');
+    if (body.sender === 'admin') throw new Error('FORBIDDEN');
   }
   const row = config.row(body), insert = buildInsert(config.table, row), result = await query(insert.text, insert.values);
   const stored = result.rowCount ? result.rows[0] : (await query(`SELECT * FROM ${config.table} WHERE id = $1`, [row.id])).rows[0];
@@ -331,7 +355,7 @@ async function createRow(config, request, authState, body) {
 }
 
 async function updateRow(config, itemId, authState, body) {
-  if (!config.adminWrite || authState?.user.role !== 'admin') throw new Error('FORBIDDEN');
+  if (!(config.adminOnly || config.adminWrite) || authState?.user.role !== 'admin') throw new Error('FORBIDDEN');
   const existing = await query(`SELECT * FROM ${config.table} WHERE id = $1`, [itemId]);
   if (!existing.rowCount) return null;
   const merged = { ...config.api(existing.rows[0]), ...body, id: itemId }, next = config.row(merged), statement = buildUpdate(config.table, itemId, next), result = await query(statement.text, statement.values);
@@ -391,7 +415,7 @@ export async function requestHandler(request, response) {
   if (request.method === 'OPTIONS') { response.writeHead(204, { ...corsHeaders(origin), ...securityHeaders() }); response.end(); return; }
   try {
     await ensureDatabaseInitialized();
-    const handled = (await handleHealthRoute(request, response, url.pathname, origin)) || (await handleAuthRoutes(request, response, url.pathname, origin)) || (await handleUsersRoutes(request, response, url.pathname, origin)) || (await handleCollectionRoutes(request, response, url.pathname, origin));
+    const handled = (await handleHealthRoute(request, response, url.pathname, origin)) || (await handleAuthRoutes(request, response, url.pathname, origin)) || (await handleUsersRoutes(request, response, url.pathname, origin)) || (await handleOrderTrackingRoute(request, response, url.pathname, origin)) || (await handleCollectionRoutes(request, response, url.pathname, origin));
     if (handled) return;
     if (url.pathname.startsWith('/api/')) { notFound(response, origin); return; }
     await serveStatic(request, response);

@@ -22,6 +22,7 @@ export function Checkout() {
   const [step, setStep] = useState<'info' | 'payment' | 'success'>('info');
   const [error, setError] = useState('');
   const [botChallenge, setBotChallenge] = useState(() => createBotChallenge());
+  const [placedOrderId, setPlacedOrderId] = useState('');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -81,8 +82,11 @@ export function Checkout() {
       return;
     }
 
+    const orderId = `ORD-${Date.now()}`;
+    const trackingUpdatedAt = new Date().toISOString();
+
     addOrder({
-      id: `ORD-${Date.now()}`,
+      id: orderId,
       customer: `${user.firstName} ${user.lastName}`.trim(),
       email: user.email,
       product: cart.map((item) => `${item.name} (${operationLabels[item.operationType]} x${item.quantity})`).join(', '),
@@ -90,7 +94,12 @@ export function Checkout() {
       status: 'Pending',
       date: new Date().toISOString().split('T')[0],
       operationType: [...new Set(cart.map((item) => operationLabels[item.operationType]))].join(', '),
+      trackingLocation: 'Order desk',
+      trackingUpdate: 'Order received. The admin team will update the tracker as processing and dispatch progress.',
+      estimatedDelivery: '',
+      trackingUpdatedAt,
     });
+    setPlacedOrderId(orderId);
     setStep('success');
     // Simulate order placement
     setTimeout(() => {
@@ -155,7 +164,8 @@ export function Checkout() {
           </p>
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-600 mb-2">Order Number</p>
-            <p className="text-2xl font-bold text-orange-500">OMP-{Math.floor(Math.random() * 1000000)}</p>
+            <p className="text-2xl font-bold text-orange-500">{placedOrderId}</p>
+            <p className="mt-2 text-sm text-gray-500">Use this number in chat to track your order.</p>
           </div>
           <Link
             to="/products"
