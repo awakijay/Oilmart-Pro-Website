@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router';
-import { ShoppingCart, ArrowLeft, Check, Truck, Shield, Clock, Star, MessageCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
+import { ShoppingCart, ArrowLeft, Truck, Shield, Clock, Star, MessageCircle } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { OperationType, useCart } from '../context/CartContext';
 import { useAppData } from '../context/AppDataContext';
@@ -13,14 +13,26 @@ const operationOptions: { value: OperationType; label: string; description: stri
   { value: 'buy_for_me', label: 'BUY FOR ME', description: 'Request procurement and we handle the purchase for you.' },
 ];
 
+function getRequestedOperation(value: string | null): OperationType | null {
+  if (value === 'lease' || value === 'buy_for_me' || value === 'sell') {
+    return value;
+  }
+
+  return null;
+}
+
 export function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addToCart } = useCart();
   const { products } = useAppData();
   const [quantity, setQuantity] = useState(1);
-  const [operationType, setOperationType] = useState<OperationType>('sell');
-  const [showAddedMessage, setShowAddedMessage] = useState(false);
+  const [operationType, setOperationType] = useState<OperationType | null>(() => getRequestedOperation(searchParams.get('operation')));
+
+  useEffect(() => {
+    setOperationType(getRequestedOperation(searchParams.get('operation')));
+  }, [searchParams]);
 
   const product = products.find(p => p.id === id);
 
@@ -44,11 +56,7 @@ export function ProductDetail() {
   const selectedOperation = operationOptions.find((option) => option.value === operationType);
 
   const handleAddToCart = () => {
-    for (let i = 0; i < quantity; i++) {
-      addToCart(product, operationType);
-    }
-    setShowAddedMessage(true);
-    setTimeout(() => setShowAddedMessage(false), 3000);
+    addToCart(product, operationType ?? undefined, quantity);
   };
 
   return (
@@ -95,7 +103,7 @@ export function ProductDetail() {
             <p className="text-gray-600 mb-8 leading-relaxed">{product.description}</p>
 
             <div className="mb-8">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Operation Type</h2>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Service Preference</h2>
               <div className="grid gap-3">
                 {operationOptions.map((option) => (
                   <button
@@ -112,11 +120,20 @@ export function ProductDetail() {
                   </button>
                 ))}
               </div>
-              <div className="mt-4 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-500">Selected for cart</p>
-                <p className="mt-2 text-lg font-bold text-gray-900">{selectedOperation?.label}</p>
-                <p className="mt-1 text-sm text-gray-600">{selectedOperation?.description}</p>
-              </div>
+              {selectedOperation ? (
+                <div className="mt-4 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-500">Selected for review</p>
+                  <p className="mt-2 text-lg font-bold text-gray-900">{selectedOperation.label}</p>
+                  <p className="mt-1 text-sm text-gray-600">{selectedOperation.description}</p>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-gray-200 bg-white px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">No service selected yet</p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    You can pick a preference here or choose the service in the add-to-cart dialog.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Rental & Service Features */}
@@ -176,7 +193,7 @@ export function ProductDetail() {
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-4 text-center text-white transition hover:bg-orange-600"
               >
                 <ShoppingCart className="w-5 h-5" />
-                Add to Cart as {selectedOperation?.label}
+                {selectedOperation ? `Review & Add as ${selectedOperation.label}` : 'Choose Service & Add to Cart'}
               </button>
               <Link
                 to={`/contact?intent=quote&product=${encodeURIComponent(product.name)}`}
@@ -185,15 +202,6 @@ export function ProductDetail() {
                 Request Quote
               </Link>
             </div>
-
-            {showAddedMessage && (
-              <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg mb-4">
-                <Check className="w-5 h-5 text-green-500" />
-                <span className="text-green-700">
-                  Added to cart successfully under <span className="font-semibold">{selectedOperation?.label}</span>.
-                </span>
-              </div>
-            )}
 
             {/* Specifications */}
             {product.specifications && (
@@ -333,7 +341,7 @@ export function ProductDetail() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
               {relatedProducts.map((relatedProduct) => (
                 <div key={relatedProduct.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition group">
-                  <Link to={`/product/${relatedProduct.id}`} className="block">
+                  <Link to={`/product/${relatedProduct.id}${searchParams.get('operation') ? `?operation=${encodeURIComponent(searchParams.get('operation') ?? '')}` : ''}`} className="block">
                     <div className="relative overflow-hidden aspect-square">
                       <ImageWithFallback
                         src={relatedProduct.image}
@@ -344,17 +352,17 @@ export function ProductDetail() {
                   </Link>
                   <div className="p-4">
                     <div className="text-sm text-orange-500 mb-1">{relatedProduct.category}</div>
-                    <Link to={`/product/${relatedProduct.id}`}>
+                    <Link to={`/product/${relatedProduct.id}${searchParams.get('operation') ? `?operation=${encodeURIComponent(searchParams.get('operation') ?? '')}` : ''}`}>
                       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 hover:text-orange-500">
                         {relatedProduct.name}
                       </h3>
                     </Link>
                     <div className="text-lg font-bold text-gray-900 mb-3">{relatedProduct.price}</div>
                     <button
-                      onClick={() => addToCart(relatedProduct)}
+                      onClick={() => addToCart(relatedProduct, operationType ?? undefined)}
                       className="w-full py-2 border-2 border-orange-500 text-orange-500 rounded hover:bg-orange-500 hover:text-white transition"
                     >
-                      Add to Cart
+                      {selectedOperation ? `Review ${selectedOperation.label}` : 'Choose Service'}
                     </button>
                   </div>
                 </div>

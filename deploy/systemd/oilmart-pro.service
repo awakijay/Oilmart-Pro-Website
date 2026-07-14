@@ -1,0 +1,26 @@
+[Unit]
+Description=Oilmart Pro web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/oilmart-pro
+EnvironmentFile=/etc/oilmart-pro/oilmart-pro.env
+ExecStart=/usr/bin/node backend/server.mjs
+Restart=on-failure
+RestartSec=5
+User=oilmart
+Group=oilmart
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/www/oilmart-pro
+TimeoutStopSec=15
+
+SyslogIdentifier=oilmart-pro
+
+[Install]
+WantedBy=multi-user.target

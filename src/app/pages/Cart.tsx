@@ -94,7 +94,7 @@ export function Cart() {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             {cart.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow-sm p-6">
+              <div key={item.cartItemId} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
                   <Link to={`/product/${item.id}`} className="flex-shrink-0">
                     <ImageWithFallback
@@ -117,11 +117,11 @@ export function Cart() {
                           <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold tracking-[0.16em] ${operationStyles[item.operationType]}`}>
                             {operationLabels[item.operationType]}
                           </span>
-                          <label className="sr-only" htmlFor={`operation-${item.id}`}>Operation Type</label>
+                          <label className="sr-only" htmlFor={`operation-${item.cartItemId}`}>Operation Type</label>
                           <select
-                            id={`operation-${item.id}`}
+                            id={`operation-${item.cartItemId}`}
                             value={item.operationType}
-                            onChange={(event) => updateOperationType(item.id, event.target.value as keyof typeof operationLabels)}
+                            onChange={(event) => updateOperationType(item.cartItemId, event.target.value as keyof typeof operationLabels)}
                             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-orange-500 sm:w-auto"
                           >
                             <option value="sell">{operationLabels.sell}</option>
@@ -131,7 +131,7 @@ export function Cart() {
                         </div>
                       </div>
                       <button
-                        onClick={() => removeFromCart(item.id)}
+                        onClick={() => removeFromCart(item.cartItemId)}
                         className="self-start text-red-500 hover:text-red-600 transition"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -150,14 +150,14 @@ export function Cart() {
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                           className="w-8 h-8 border-2 border-gray-300 rounded hover:border-orange-500 transition flex items-center justify-center"
                         >
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="w-12 text-center font-semibold">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
                           className="w-8 h-8 border-2 border-gray-300 rounded hover:border-orange-500 transition flex items-center justify-center"
                         >
                           <Plus className="w-4 h-4" />

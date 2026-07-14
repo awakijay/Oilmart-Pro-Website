@@ -2,6 +2,8 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 import { Product } from './CartContext';
 import { getCategories, seedProducts } from '../data/products';
 import { normalizeCurrencyString } from '../utils/currency';
+import { apiRequest, getStoredAuthToken } from '../utils/api';
+import { getStoredAdminToken } from '../utils/adminAuth';
 
 export interface BlogPost {
   id: string;
@@ -94,30 +96,93 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
 
   useEffect(() => {
-    const savedProducts = localStorage.getItem(PRODUCTS_KEY);
-    const savedBlog = localStorage.getItem(BLOG_KEY);
-    const savedOrders = localStorage.getItem(ORDERS_KEY);
-    const savedQuotes = localStorage.getItem(QUOTES_KEY);
-    if (savedProducts) setProducts(JSON.parse(savedProducts).map(normalizeProduct));
-    if (savedBlog) {
-      setBlogPosts(
-        JSON.parse(savedBlog).filter((post: BlogPost) => post.content !== 'Full blog content here...'),
-      );
-    }
-    if (savedOrders) {
-      setOrders(
-        JSON.parse(savedOrders)
-          .filter((order: OrderRecord) => !LEGACY_ORDER_IDS.has(order.id))
-          .map(normalizeOrder),
-      );
-    }
-    if (savedQuotes) setQuoteRequests(JSON.parse(savedQuotes));
-  }, []);
+    let isActive = true;
 
-  useEffect(() => { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem(BLOG_KEY, JSON.stringify(blogPosts)); }, [blogPosts]);
-  useEffect(() => { localStorage.setItem(ORDERS_KEY, JSON.stringify(orders)); }, [orders]);
-  useEffect(() => { localStorage.setItem(QUOTES_KEY, JSON.stringify(quoteRequests)); }, [quoteRequests]);
+    const migrateLegacyCollection = async <T extends { id: string }>(
+      storageKey: string,
+      route: string,
+      fallback: T[],
+    ) => {
+      const raw = localStorage.getItem(storageKey);
+      const items: T[] = raw ? JSON.parse(raw) : fallback;
+
+      if (!items.length) return;
+
+      for (const item of items) {
+        try {
+          await apiRequest(route, { method: 'POST', body: item });
+        } catch {
+          // Ignore duplicates during migration.
+        }
+      }
+    };
+
+    const hydrate = async () => {
+      try {
+        const adminToken = getStoredAdminToken();
+        const customerToken = getStoredAuthToken();
+        const [fetchedProducts, fetchedBlogPosts, fetchedOrders, fetchedQuotes] = await Promise.all([
+          apiRequest<Product[]>('/products'),
+          apiRequest<BlogPost[]>('/blog-posts'),
+          adminToken
+            ? apiRequest<OrderRecord[]>('/orders', { auth: true, token: adminToken })
+            : customerToken
+              ? apiRequest<OrderRecord[]>('/orders?mine=true', { auth: true, token: customerToken })
+              : Promise.resolve([]),
+          adminToken
+            ? apiRequest<QuoteRequest[]>('/quote-requests', { auth: true, token: adminToken })
+            : Promise.resolve([]),
+        ]);
+
+        if (!fetchedProducts.length) {
+          await migrateLegacyCollection(PRODUCTS_KEY, '/products', seedProducts);
+        }
+        if (!fetchedBlogPosts.length) {
+          await migrateLegacyCollection(BLOG_KEY, '/blog-posts', []);
+        }
+        if (!fetchedOrders.length) {
+          await migrateLegacyCollection(ORDERS_KEY, '/orders', []);
+        }
+        if (!fetchedQuotes.length) {
+          await migrateLegacyCollection(QUOTES_KEY, '/quote-requests', []);
+        }
+
+        const [nextProducts, nextBlogPosts, nextOrders, nextQuotes] = await Promise.all([
+          apiRequest<Product[]>('/products'),
+          apiRequest<BlogPost[]>('/blog-posts'),
+          apiRequest<OrderRecord[]>('/orders'),
+          apiRequest<QuoteRequest[]>('/quote-requests'),
+        ]);
+
+        if (!isActive) return;
+
+        setProducts((nextProducts.length ? nextProducts : seedProducts).map(normalizeProduct));
+        setBlogPosts(
+          nextBlogPosts.filter((post) => post.content !== 'Full blog content here...'),
+        );
+        setOrders(
+          nextOrders
+            .filter((order) => !LEGACY_ORDER_IDS.has(order.id))
+            .map(normalizeOrder),
+        );
+        setQuoteRequests(nextQuotes);
+      } catch {
+        if (!isActive) return;
+        setProducts(seedProducts);
+      } finally {
+        localStorage.removeItem(PRODUCTS_KEY);
+        localStorage.removeItem(BLOG_KEY);
+        localStorage.removeItem(ORDERS_KEY);
+        localStorage.removeItem(QUOTES_KEY);
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const value = useMemo<AppDataContextType>(() => ({
     products,
@@ -125,16 +190,48 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     blogPosts,
     orders,
     quoteRequests,
-    addProduct: (product) => setProducts((prev) => [...prev, normalizeProduct(product)]),
-    updateProduct: (productId, product) => setProducts((prev) => prev.map((item) => item.id === productId ? normalizeProduct({ ...item, ...product }) : item)),
-    deleteProduct: (productId) => setProducts((prev) => prev.filter((item) => item.id !== productId)),
-    addBlogPost: (post) => setBlogPosts((prev) => [post, ...prev]),
-    updateBlogPost: (postId, post) => setBlogPosts((prev) => prev.map((item) => item.id === postId ? { ...item, ...post } : item)),
-    deleteBlogPost: (postId) => setBlogPosts((prev) => prev.filter((item) => item.id !== postId)),
-    addOrder: (order) => setOrders((prev) => [normalizeOrder(order), ...prev]),
-    updateOrderStatus: (orderId, status) => setOrders((prev) => prev.map((item) => item.id === orderId ? { ...item, status } : item)),
-    addQuoteRequest: (request) => setQuoteRequests((prev) => [request, ...prev]),
-    updateQuoteStatus: (quoteId, status) => setQuoteRequests((prev) => prev.map((item) => item.id === quoteId ? { ...item, status } : item)),
+    addProduct: (product) => {
+      const normalized = normalizeProduct(product);
+      setProducts((prev) => [...prev, normalized]);
+      void apiRequest<Product>('/products', { method: 'POST', body: normalized, auth: true, token: getStoredAdminToken() });
+    },
+    updateProduct: (productId, product) => {
+      setProducts((prev) => prev.map((item) => item.id === productId ? normalizeProduct({ ...item, ...product }) : item));
+      void apiRequest<Product>(`/products/${productId}`, { method: 'PATCH', body: product, auth: true, token: getStoredAdminToken() });
+    },
+    deleteProduct: (productId) => {
+      setProducts((prev) => prev.filter((item) => item.id !== productId));
+      void apiRequest<{ success: boolean }>(`/products/${productId}`, { method: 'DELETE', auth: true, token: getStoredAdminToken() });
+    },
+    addBlogPost: (post) => {
+      setBlogPosts((prev) => [post, ...prev]);
+      void apiRequest<BlogPost>('/blog-posts', { method: 'POST', body: post, auth: true, token: getStoredAdminToken() });
+    },
+    updateBlogPost: (postId, post) => {
+      setBlogPosts((prev) => prev.map((item) => item.id === postId ? { ...item, ...post } : item));
+      void apiRequest<BlogPost>(`/blog-posts/${postId}`, { method: 'PATCH', body: post, auth: true, token: getStoredAdminToken() });
+    },
+    deleteBlogPost: (postId) => {
+      setBlogPosts((prev) => prev.filter((item) => item.id !== postId));
+      void apiRequest<{ success: boolean }>(`/blog-posts/${postId}`, { method: 'DELETE', auth: true, token: getStoredAdminToken() });
+    },
+    addOrder: (order) => {
+      const normalized = normalizeOrder(order);
+      setOrders((prev) => [normalized, ...prev]);
+      void apiRequest<OrderRecord>('/orders', { method: 'POST', body: normalized, auth: true });
+    },
+    updateOrderStatus: (orderId, status) => {
+      setOrders((prev) => prev.map((item) => item.id === orderId ? { ...item, status } : item));
+      void apiRequest<OrderRecord>(`/orders/${orderId}`, { method: 'PATCH', body: { status }, auth: true, token: getStoredAdminToken() });
+    },
+    addQuoteRequest: (request) => {
+      setQuoteRequests((prev) => [request, ...prev]);
+      void apiRequest<QuoteRequest>('/quote-requests', { method: 'POST', body: request });
+    },
+    updateQuoteStatus: (quoteId, status) => {
+      setQuoteRequests((prev) => prev.map((item) => item.id === quoteId ? { ...item, status } : item));
+      void apiRequest<QuoteRequest>(`/quote-requests/${quoteId}`, { method: 'PATCH', body: { status }, auth: true, token: getStoredAdminToken() });
+    },
   }), [blogPosts, orders, products, quoteRequests]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

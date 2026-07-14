@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, Eye } from 'lucide-react';
+import { ImageUp, Plus, Edit2, Trash2, Search, Eye } from 'lucide-react';
 import { BlogPost, useAppData } from '../../context/AppDataContext';
+import { IMAGE_ACCEPT, imageFileToDataUrl } from '../../utils/imageUpload';
 
 const defaultPost: Partial<BlogPost> = {
   title: '',
@@ -18,6 +19,7 @@ export function AdminBlog() {
   const [viewingPostId, setViewingPostId] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [formPost, setFormPost] = useState<Partial<BlogPost>>(defaultPost);
+  const [imageUploadError, setImageUploadError] = useState('');
 
   const filteredPosts = posts.filter((post) =>
     post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -31,6 +33,7 @@ export function AdminBlog() {
     setShowModal(false);
     setEditingPostId(null);
     setFormPost(defaultPost);
+    setImageUploadError('');
   };
 
   const handleAddPost = (e: React.FormEvent) => {
@@ -65,8 +68,24 @@ export function AdminBlog() {
 
   const openEditModal = (post: BlogPost) => {
     setEditingPostId(post.id);
+    setImageUploadError('');
     setFormPost(post);
     setShowModal(true);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImageUploadError('');
+      const image = await imageFileToDataUrl(file);
+      setFormPost((current) => ({ ...current, image }));
+    } catch (error) {
+      setImageUploadError(error instanceof Error ? error.message : 'Unable to upload image.');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   return (
@@ -76,7 +95,7 @@ export function AdminBlog() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Blog Management</h1>
           <p className="text-gray-600">Create and manage content that stays available across admin sessions.</p>
         </div>
-        <button onClick={() => { setEditingPostId(null); setFormPost(defaultPost); setShowModal(true); }} className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-3 text-white transition hover:bg-orange-600">
+        <button onClick={() => { setEditingPostId(null); setFormPost(defaultPost); setImageUploadError(''); setShowModal(true); }} className="flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-6 py-3 text-white transition hover:bg-orange-600">
           <Plus className="w-5 h-5" />
           Add Blog Post
         </button>
@@ -122,7 +141,23 @@ export function AdminBlog() {
               <input value={formPost.title} onChange={(e) => setFormPost({ ...formPost, title: e.target.value })} required placeholder="Title" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
               <textarea value={formPost.excerpt} onChange={(e) => setFormPost({ ...formPost, excerpt: e.target.value })} required rows={2} placeholder="Excerpt" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
               <textarea value={formPost.content} onChange={(e) => setFormPost({ ...formPost, content: e.target.value })} required rows={6} placeholder="Content" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
-              <input value={formPost.image} onChange={(e) => setFormPost({ ...formPost, image: e.target.value })} placeholder="Featured Image URL" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+              <div className="space-y-3">
+                <input value={formPost.image} onChange={(e) => setFormPost({ ...formPost, image: e.target.value })} placeholder="Featured Image URL" className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600">
+                    <ImageUp className="h-5 w-5" />
+                    Upload image file
+                    <input type="file" accept={IMAGE_ACCEPT} onChange={handleImageUpload} className="sr-only" />
+                  </label>
+                  {formPost.image && (
+                    <div className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                      <img src={formPost.image} alt="Selected blog" className="h-12 w-12 rounded object-cover" />
+                      <span className="text-sm text-gray-600">{formPost.image.startsWith('data:') ? 'Uploaded image selected' : 'Image URL selected'}</span>
+                    </div>
+                  )}
+                </div>
+                {imageUploadError && <p className="text-sm text-red-600">{imageUploadError}</p>}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <select value={formPost.category} onChange={(e) => setFormPost({ ...formPost, category: e.target.value })} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500">
                   <option>Technical</option>

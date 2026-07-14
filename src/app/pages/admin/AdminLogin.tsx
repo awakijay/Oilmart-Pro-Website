@@ -1,21 +1,29 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User } from 'lucide-react';
 import { BrandLogo } from '../../components/BrandLogo';
+import { apiRequest } from '../../utils/api';
+import { setStoredAdminToken } from '../../utils/adminAuth';
 
 export function AdminLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (username === 'admin' && password === 'admin123') {
-      localStorage.setItem('admin_logged_in', 'true');
+    try {
+      const response = await apiRequest<{ token: string }>('/admin/login', {
+        method: 'POST',
+        body: { username, password },
+      });
+
+      setStoredAdminToken(response.token);
       navigate('/admin/dashboard');
-    } else {
+    } catch {
       setError('Invalid credentials.');
     }
   };
@@ -33,7 +41,7 @@ export function AdminLogin() {
           <form onSubmit={handleLogin}>
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Username
+                Username or Email
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -42,7 +50,7 @@ export function AdminLogin() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  placeholder="Enter username"
+                  placeholder="Enter username or email"
                   required
                 />
               </div>
@@ -55,13 +63,22 @@ export function AdminLogin() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  className="w-full pl-10 pr-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
                   placeholder="Enter password"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 focus:outline-none focus:text-orange-500"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 

@@ -3,6 +3,8 @@ import { useNavigate, Link, Outlet, useLocation } from 'react-router';
 import { LayoutDashboard, Package, ShoppingBag, LogOut, Users, BarChart3, FileText, Home, MessageCircle } from 'lucide-react';
 import { BrandLogo } from '../../components/BrandLogo';
 import { useChat } from '../../context/ChatContext';
+import { apiRequest } from '../../utils/api';
+import { clearStoredAdminToken, fetchAdminMe, getStoredAdminToken } from '../../utils/adminAuth';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -10,15 +12,38 @@ export function AdminDashboard() {
   const { unreadForAdmin } = useChat();
 
   useEffect(() => {
-    const isLoggedIn = localStorage.getItem('admin_logged_in');
-    if (!isLoggedIn) {
-      navigate('/admin');
-    }
+    let isActive = true;
+
+    const validateAdmin = async () => {
+      try {
+        await fetchAdminMe();
+      } catch {
+        if (!isActive) return;
+        clearStoredAdminToken();
+        navigate('/admin');
+      }
+    };
+
+    void validateAdmin();
+
+    return () => {
+      isActive = false;
+    };
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('admin_logged_in');
-    navigate('/admin');
+  const handleLogout = async () => {
+    try {
+      await apiRequest<{ success: boolean }>('/admin/logout', {
+        method: 'POST',
+        auth: true,
+        token: getStoredAdminToken(),
+      });
+    } catch {
+      // Continue local cleanup if the admin session is already invalid.
+    } finally {
+      clearStoredAdminToken();
+      navigate('/admin');
+    }
   };
 
   const menuItems = [

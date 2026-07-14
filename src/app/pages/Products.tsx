@@ -2,18 +2,34 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Filter } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import { useCart } from '../context/CartContext';
+import { OperationType, useCart } from '../context/CartContext';
 import { useAppData } from '../context/AppDataContext';
 
 function normalizeCategoryName(value: string) {
   return value.toLowerCase().replace(/\s*-\s*bop$/, '').trim();
 }
 
+function getOperationFromParam(value: string): OperationType | null {
+  if (value === 'sell' || value === 'lease' || value === 'buy_for_me') {
+    return value;
+  }
+
+  return null;
+}
+
+const operationLabels = {
+  sell: 'SELLS',
+  lease: 'LEASE',
+  buy_for_me: 'BUY FOR ME',
+} as const;
+
 export function Products() {
   const { products, categories } = useAppData();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryParam = searchParams.get('category');
   const searchQuery = searchParams.get('q')?.trim() ?? '';
+  const operationParam = searchParams.get('operation')?.trim() ?? '';
+  const resolvedOperation = getOperationFromParam(operationParam);
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('featured');
@@ -176,7 +192,7 @@ export function Products() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition group">
-                  <Link to={`/product/${product.id}`} className="block">
+                  <Link to={`/product/${product.id}${operationParam ? `?operation=${encodeURIComponent(operationParam)}` : ''}`} className="block">
                     <div className="relative overflow-hidden aspect-square">
                       <ImageWithFallback
                         src={product.image}
@@ -187,7 +203,7 @@ export function Products() {
                   </Link>
                   <div className="p-4">
                     <div className="text-sm text-orange-500 mb-1">{product.category}</div>
-                    <Link to={`/product/${product.id}`}>
+                    <Link to={`/product/${product.id}${operationParam ? `?operation=${encodeURIComponent(operationParam)}` : ''}`}>
                       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 hover:text-orange-500">
                         {product.name}
                       </h3>
@@ -202,10 +218,10 @@ export function Products() {
                     </div>
                     <div className="text-lg font-bold text-gray-900 mb-3">{product.price}</div>
                     <button
-                      onClick={() => addToCart(product)}
+                      onClick={() => addToCart(product, resolvedOperation ?? undefined)}
                       className="w-full py-2 border-2 border-orange-500 text-orange-500 rounded hover:bg-orange-500 hover:text-white transition"
                     >
-                      Add to Cart
+                      {resolvedOperation ? `Review ${operationLabels[resolvedOperation]} Service` : 'Choose Service'}
                     </button>
                   </div>
                 </div>

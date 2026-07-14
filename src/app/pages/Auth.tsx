@@ -32,7 +32,7 @@ export function Auth() {
     }
   }, [isAuthenticated, navigate, redirectTo]);
 
-  const handleLogin = (event: React.FormEvent) => {
+  const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!isBotCheckValid(loginSecurity.securityAnswer, botChallenge.answer, loginSecurity.website)) {
       setFeedback({ type: 'error', message: 'Security check failed. Please answer the question correctly.' });
@@ -40,12 +40,12 @@ export function Auth() {
       setLoginSecurity({ securityAnswer: '', website: '' });
       return;
     }
-    const result = login(loginForm.email, loginForm.password);
+    const result = await login(loginForm.email, loginForm.password);
     setFeedback({ type: result.success ? 'success' : 'error', message: result.message });
     if (result.success) navigate(redirectTo);
   };
 
-  const handleRegister = (event: React.FormEvent) => {
+  const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!isBotCheckValid(registerForm.securityAnswer, botChallenge.answer, registerForm.website)) {
       setFeedback({ type: 'error', message: 'Security check failed. Please answer the question correctly.' });
@@ -54,7 +54,7 @@ export function Auth() {
       return;
     }
     const { securityAnswer, website, ...payload } = registerForm;
-    const result = register(payload);
+    const result = await register(payload);
     setFeedback({ type: result.success ? 'success' : 'error', message: result.message });
     if (result.success) navigate(redirectTo);
   };

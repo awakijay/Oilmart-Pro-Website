@@ -5,6 +5,7 @@ import { formatNaira } from '../utils/currency';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useAppData } from '../context/AppDataContext';
+import { IMAGE_ACCEPT, imageFileToDataUrl } from '../utils/imageUpload';
 
 export function Profile() {
   const { user, isAuthenticated, updateProfile } = useAuth();
@@ -14,6 +15,8 @@ export function Profile() {
   const [chatMessage, setChatMessage] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [photoSaving, setPhotoSaving] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
     firstName: '',
     lastName: '',
@@ -32,7 +35,7 @@ export function Profile() {
       phone: user.phone,
       company: user.company,
       avatar: user.avatar ?? '',
-      password: user.password,
+      password: '',
     });
   }, [user]);
 
@@ -76,24 +79,41 @@ export function Profile() {
     setChatMessage('');
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile(settingsForm);
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 3000);
+    try {
+      setSettingsError('');
+      const { password: _password, email: _email, ...profilePayload } = settingsForm;
+      await updateProfile(profilePayload);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : 'Unable to save account settings.');
+    }
   };
 
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const avatar = typeof reader.result === 'string' ? reader.result : '';
+    const previousAvatar = user.avatar ?? '';
+
+    try {
+      setPhotoSaving(true);
+      setSettingsError('');
+      const avatar = await imageFileToDataUrl(file);
       setSettingsForm((prev) => ({ ...prev, avatar }));
-      updateProfile({ avatar });
-    };
-    reader.readAsDataURL(file);
+      await updateProfile({ avatar });
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (error) {
+      setSettingsForm((prev) => ({ ...prev, avatar: previousAvatar }));
+      setSettingsError(error instanceof Error ? error.message : 'Unable to upload profile picture.');
+    } finally {
+      setPhotoSaving(false);
+      input.value = '';
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -331,6 +351,11 @@ export function Profile() {
                         Your account settings were saved successfully.
                       </div>
                     )}
+                    {settingsError && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                        {settingsError}
+                      </div>
+                    )}
 
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
                       <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -344,10 +369,10 @@ export function Profile() {
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">Profile Picture</h3>
                           <p className="text-sm text-gray-600">Upload a photo and it will appear on your profile and in the website header profile tab.</p>
-                          <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-sm">
+                          <label className={`mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-sm ${photoSaving ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}>
                             <Camera className="h-4 w-4 text-orange-500" />
-                            Upload New Photo
-                            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                            {photoSaving ? 'Saving Photo...' : 'Upload New Photo'}
+                            <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={handlePhotoUpload} disabled={photoSaving} />
                           </label>
                         </div>
                       </div>

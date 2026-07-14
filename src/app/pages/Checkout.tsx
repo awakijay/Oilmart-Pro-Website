@@ -85,7 +85,7 @@ export function Checkout() {
       id: `ORD-${Date.now()}`,
       customer: `${user.firstName} ${user.lastName}`.trim(),
       email: user.email,
-      product: cart.map((item) => item.name).join(', '),
+      product: cart.map((item) => `${item.name} (${operationLabels[item.operationType]} x${item.quantity})`).join(', '),
       amount: formatNaira(finalTotal),
       status: 'Pending',
       date: new Date().toISOString().split('T')[0],
@@ -489,7 +489,7 @@ export function Checkout() {
               
               <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
                 {cart.map((item) => (
-                  <div key={item.id} className="flex gap-3 pb-3 border-b border-gray-100">
+                  <div key={item.cartItemId} className="flex gap-3 pb-3 border-b border-gray-100">
                     <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded" />
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.name}</p>

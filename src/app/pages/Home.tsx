@@ -43,7 +43,7 @@ export function Home() {
       description: 'Use LEASE for rental-driven operations, project mobilization, and flexible asset access without full ownership.',
       highlights: ['Short and long-term usage', 'Project-based deployment support', 'Lower upfront capital commitment'],
       ctaLabel: 'Explore Leasing Options',
-      ctaTo: '/products?q=lease',
+      ctaTo: '/products?operation=lease',
     },
     {
       step: '3. BUY FOR ME',
@@ -111,10 +111,10 @@ export function Home() {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between mb-8">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-500">Latest Insights</p>
-              <h2 className="text-3xl font-bold text-gray-900">Updates from the admin blog</h2>
+              <h2 className="text-3xl font-bold text-gray-900">Latest Updates</h2>
             </div>
             <p className="max-w-2xl text-sm text-gray-600">
-              Published posts from the admin panel appear here automatically so customers can see fresh safety, operations, and procurement updates.
+              Insights, safety notes, operations updates, and procurement guidance from Oil Mart Pro.
             </p>
           </div>
 
@@ -137,9 +137,12 @@ export function Home() {
                     </div>
                     <h3 className="mb-3 text-xl font-bold text-gray-900">{post.title}</h3>
                     <p className="mb-5 text-sm leading-6 text-gray-600">{post.excerpt}</p>
-                    <div className="rounded-xl bg-white px-4 py-3 text-sm text-gray-700">
-                      Written by {post.author}
-                    </div>
+                    <Link
+                      to={`/blog/${post.id}`}
+                      className="text-sm font-semibold text-orange-500 transition hover:text-orange-600"
+                    >
+                      Read full article
+                    </Link>
                   </div>
                 </article>
               ))}
@@ -223,7 +226,7 @@ export function Home() {
                     onClick={() => addToCart(product)}
                     className="w-full py-2 border-2 border-orange-500 text-orange-500 rounded hover:bg-orange-500 hover:text-white transition"
                   >
-                    Add to Cart
+                    Choose Service
                   </button>
                 </div>
               </div>

@@ -1,4 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { apiRequest, getStoredAuthToken } from '../utils/api';
+import { getStoredAdminToken } from '../utils/adminAuth';
 
 export interface ChatThread {
   id: string;
@@ -68,33 +70,105 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadForUserByThread, setUnreadForUserByThread] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    const savedThreads = localStorage.getItem(CHAT_THREADS_KEY);
-    const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY);
-    const savedUnreadUser = localStorage.getItem(CHAT_UNREAD_USER_KEY);
-    const savedUnreadAdmin = localStorage.getItem(CHAT_UNREAD_ADMIN_KEY);
+    let isActive = true;
 
-    if (savedThreads) {
-      const parsedThreads: ChatThread[] = JSON.parse(savedThreads);
-      setThreads(parsedThreads.some((thread) => thread.id === guestThread.id) ? parsedThreads : [guestThread, ...parsedThreads]);
-    }
-    if (savedMessages) {
-      setMessages(JSON.parse(savedMessages).filter((message: ChatMessage) => message.id !== 'welcome-1'));
-    }
-    if (savedUnreadUser) {
-      setUnreadForUserByThread(JSON.parse(savedUnreadUser));
-    }
-    if (savedUnreadAdmin) {
-      setUnreadForAdminByThread(JSON.parse(savedUnreadAdmin));
-    }
+    const migrateLegacyChat = async () => {
+      const savedThreads = localStorage.getItem(CHAT_THREADS_KEY);
+      const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY);
+      const parsedThreads: ChatThread[] = savedThreads ? JSON.parse(savedThreads) : [];
+      const parsedMessages: ChatMessage[] = savedMessages ? JSON.parse(savedMessages) : [];
+      const adminToken = getStoredAdminToken();
+      const customerToken = getStoredAuthToken();
+
+      for (const thread of parsedThreads) {
+        try {
+          await apiRequest<ChatThread>('/chat/threads', {
+            method: 'POST',
+            body: thread,
+            ...(thread.id === guestThread.id
+              ? {}
+              : adminToken
+                ? { auth: true, token: adminToken }
+                : customerToken
+                  ? { auth: true, token: customerToken }
+                  : {}),
+          });
+        } catch {
+          // Ignore duplicates during migration.
+        }
+      }
+
+      for (const message of parsedMessages.filter((item) => item.id !== 'welcome-1')) {
+        try {
+          await apiRequest<ChatMessage>('/chat/messages', {
+            method: 'POST',
+            body: message,
+            ...(message.threadId === guestThread.id
+              ? {}
+              : adminToken
+                ? { auth: true, token: adminToken }
+                : customerToken
+                  ? { auth: true, token: customerToken }
+                  : {}),
+          });
+        } catch {
+          // Ignore duplicates during migration.
+        }
+      }
+    };
+
+    const hydrate = async () => {
+      try {
+        await migrateLegacyChat();
+        const adminToken = getStoredAdminToken();
+        const customerToken = getStoredAuthToken();
+        const authOptions = adminToken
+          ? { auth: true as const, token: adminToken }
+          : customerToken
+            ? { auth: true as const, token: customerToken }
+            : undefined;
+        const fetchedThreads = await apiRequest<ChatThread[]>('/chat/threads', authOptions);
+        const messageGroups = await Promise.all(
+          fetchedThreads.map((thread) =>
+            apiRequest<ChatMessage[]>(`/chat/messages?threadId=${encodeURIComponent(thread.id)}`, authOptions)
+          )
+        );
+        const fetchedMessages = messageGroups.flat();
+
+        if (!isActive) return;
+
+        setThreads(
+          fetchedThreads.some((thread) => thread.id === guestThread.id)
+            ? fetchedThreads
+            : [guestThread, ...fetchedThreads],
+        );
+        setMessages(fetchedMessages.filter((message) => message.id !== 'welcome-1'));
+      } catch {
+        if (!isActive) return;
+        setThreads([guestThread]);
+        setMessages([]);
+      } finally {
+        const savedUnreadUser = localStorage.getItem(CHAT_UNREAD_USER_KEY);
+        const savedUnreadAdmin = localStorage.getItem(CHAT_UNREAD_ADMIN_KEY);
+
+        if (savedUnreadUser) {
+          setUnreadForUserByThread(JSON.parse(savedUnreadUser));
+        }
+        if (savedUnreadAdmin) {
+          setUnreadForAdminByThread(JSON.parse(savedUnreadAdmin));
+        }
+
+        localStorage.removeItem(CHAT_THREADS_KEY);
+        localStorage.removeItem(CHAT_MESSAGES_KEY);
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      isActive = false;
+    };
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(CHAT_THREADS_KEY, JSON.stringify(threads));
-  }, [threads]);
-
-  useEffect(() => {
-    localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messages));
-  }, [messages]);
 
   useEffect(() => {
     localStorage.setItem(CHAT_UNREAD_USER_KEY, JSON.stringify(unreadForUserByThread));
@@ -126,6 +200,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
 
       setThreads((prev) => [nextThread, ...prev.filter((thread) => thread.id !== threadId)]);
+      void apiRequest<ChatThread>('/chat/threads', {
+        method: 'POST',
+        body: nextThread,
+        auth: true,
+        token: getStoredAuthToken(),
+      });
       return nextThread;
     }
 
@@ -137,17 +217,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!normalizedText) return;
 
     const thread = ensureThread(options);
+    const nextMessage = {
+      id: `${Date.now()}-user`,
+      threadId: thread.id,
+      sender: 'user' as const,
+      text: normalizedText,
+      timestamp: new Date().toISOString(),
+    };
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-user`,
-        threadId: thread.id,
-        sender: 'user',
-        text: normalizedText,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    setMessages((prev) => [...prev, nextMessage]);
+    void apiRequest<ChatMessage>('/chat/messages', {
+      method: 'POST',
+      body: nextMessage,
+      ...(thread.id === guestThread.id ? {} : { auth: true, token: getStoredAuthToken() }),
+    });
     setUnreadForAdminByThread((prev) => ({ ...prev, [thread.id]: (prev[thread.id] ?? 0) + 1 }));
   };
 
@@ -155,16 +238,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const normalizedText = text.trim();
     if (!normalizedText) return;
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-admin`,
-        threadId,
-        sender: 'admin',
-        text: normalizedText,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    const nextMessage = {
+      id: `${Date.now()}-admin`,
+      threadId,
+      sender: 'admin' as const,
+      text: normalizedText,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, nextMessage]);
+    void apiRequest<ChatMessage>('/chat/messages', {
+      method: 'POST',
+      body: nextMessage,
+      auth: true,
+      token: getStoredAdminToken(),
+    });
     setUnreadForUserByThread((prev) => ({ ...prev, [threadId]: (prev[threadId] ?? 0) + 1 }));
   };
 
@@ -183,6 +271,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       userName,
     };
     setThreads((prev) => [nextThread, ...prev.filter((thread) => thread.id !== threadId)]);
+    void apiRequest<ChatThread>('/chat/threads', {
+      method: 'POST',
+      body: nextThread,
+      auth: true,
+      token: getStoredAuthToken(),
+    });
     return nextThread;
   };
 

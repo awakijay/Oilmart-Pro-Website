@@ -1,13 +1,17 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { apiRequest, clearStoredAuthToken, getStoredAuthToken, setStoredAuthToken } from '../utils/api';
+import { getStoredAdminToken } from '../utils/adminAuth';
 
 export interface AuthUser {
+  id?: string;
   firstName: string;
   lastName: string;
+  username?: string;
   email: string;
   phone: string;
   company: string;
-  password: string;
   avatar?: string;
+  role?: 'admin' | 'customer';
 }
 
 interface AuthPayload {
@@ -21,12 +25,12 @@ interface AuthPayload {
 
 interface AuthContextType {
   user: AuthUser | null;
-  users: Omit<AuthUser, 'password'>[];
+  users: AuthUser[];
   isAuthenticated: boolean;
-  register: (payload: AuthPayload) => { success: boolean; message: string };
-  login: (email: string, password: string) => { success: boolean; message: string };
-  logout: () => void;
-  updateProfile: (payload: Partial<AuthUser>) => void;
+  register: (payload: AuthPayload) => Promise<{ success: boolean; message: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  logout: () => Promise<void>;
+  updateProfile: (payload: Partial<AuthUser>) => Promise<void>;
 }
 
 const USERS_KEY = 'oilmartpro_users';
@@ -39,70 +43,156 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
+    let isActive = true;
+
+    const syncLegacyUsers = async () => {
+      const savedUsers = localStorage.getItem(USERS_KEY);
+      if (!savedUsers) return;
+
+      const parsedUsers: Array<AuthUser & { password?: string }> = JSON.parse(savedUsers);
+
+      for (const legacyUser of parsedUsers) {
+        if (!legacyUser.password) continue;
+
+        try {
+          await apiRequest<{ user: AuthUser; token: string }>('/auth/register', {
+            method: 'POST',
+            body: {
+              firstName: legacyUser.firstName,
+              lastName: legacyUser.lastName,
+              email: legacyUser.email,
+              phone: legacyUser.phone,
+              company: legacyUser.company,
+              password: legacyUser.password,
+              avatar: legacyUser.avatar ?? '',
+            },
+          });
+        } catch {
+          // Ignore duplicates during one-time migration.
+        }
+      }
+    };
+
+    const hydrate = async () => {
+      try {
+        await syncLegacyUsers();
+        const adminToken = getStoredAdminToken();
+        const fetchedUsers = adminToken
+          ? await apiRequest<AuthUser[]>('/users', { auth: true, token: adminToken })
+          : [];
+
+        if (!isActive) return;
+        setUsers(fetchedUsers.filter((item) => item.role !== 'admin'));
+
+        const token = getStoredAuthToken();
+
+        if (token) {
+          const me = await apiRequest<{ user: AuthUser }>('/auth/me', { auth: true });
+          if (!isActive) return;
+          setUser(me.user);
+          return;
+        }
+
+        const activeUserEmail = localStorage.getItem(ACTIVE_USER_KEY);
+        const legacyUsers: Array<AuthUser & { password?: string }> = savedUsers ? JSON.parse(savedUsers) : [];
+        const legacyUser = activeUserEmail
+          ? legacyUsers.find((item) => item.email === activeUserEmail && item.password)
+          : null;
+
+        if (legacyUser?.password) {
+          const loginResponse = await apiRequest<{ user: AuthUser; token: string }>('/auth/login', {
+            method: 'POST',
+            body: {
+              email: legacyUser.email,
+              password: legacyUser.password,
+            },
+          });
+
+          if (!isActive) return;
+          setStoredAuthToken(loginResponse.token);
+          setUser(loginResponse.user);
+        }
+      } catch {
+        clearStoredAuthToken();
+      } finally {
+        localStorage.removeItem(USERS_KEY);
+      }
+    };
+
     const savedUsers = localStorage.getItem(USERS_KEY);
-    const activeUserEmail = localStorage.getItem(ACTIVE_USER_KEY);
-    const parsedUsers: AuthUser[] = savedUsers ? JSON.parse(savedUsers) : [];
+    void hydrate();
 
-    setUsers(parsedUsers);
-
-    if (activeUserEmail) {
-      const activeUser = parsedUsers.find((item) => item.email === activeUserEmail) ?? null;
-      setUser(activeUser);
-    }
+    return () => {
+      isActive = false;
+    };
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }, [users]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,
-    users: users.map(({ password: _password, ...safeUser }) => safeUser),
+    users,
     isAuthenticated: Boolean(user),
-    register: (payload) => {
-      const normalizedEmail = payload.email.trim().toLowerCase();
-      const alreadyExists = users.some((item) => item.email.toLowerCase() === normalizedEmail);
+    register: async (payload) => {
+      try {
+        const response = await apiRequest<{ user: AuthUser; token: string }>('/auth/register', {
+          method: 'POST',
+          body: payload,
+        });
 
-      if (alreadyExists) {
-        return { success: false, message: 'An account with this email already exists.' };
+        setStoredAuthToken(response.token);
+        setUser(response.user);
+        if (response.user.role !== 'admin') {
+          setUsers((prev) => [...prev.filter((item) => item.email !== response.user.email), response.user]);
+        }
+        localStorage.setItem(ACTIVE_USER_KEY, response.user.email);
+
+        return { success: true, message: 'Your account has been created successfully.' };
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : 'Unable to create account.' };
+      }
+    },
+    login: async (email, password) => {
+      try {
+        const response = await apiRequest<{ user: AuthUser; token: string }>('/auth/login', {
+          method: 'POST',
+          body: { email, password },
+        });
+
+        setStoredAuthToken(response.token);
+        setUser(response.user);
+        if (response.user.role !== 'admin') {
+          setUsers((prev) => [...prev.filter((item) => item.email !== response.user.email), response.user]);
+        }
+        localStorage.setItem(ACTIVE_USER_KEY, response.user.email);
+
+        return { success: true, message: 'Signed in successfully.' };
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : 'Invalid email or password.' };
+      }
+    },
+    logout: async () => {
+      try {
+        await apiRequest<{ success: boolean }>('/auth/logout', { method: 'POST', auth: true });
+      } catch {
+        // Continue local logout even if the server token has already expired.
       }
 
-      const nextUser: AuthUser = {
-        ...payload,
-        email: normalizedEmail,
-      };
-
-      setUsers((prev) => [...prev, nextUser]);
-      setUser(nextUser);
-      localStorage.setItem(ACTIVE_USER_KEY, normalizedEmail);
-      return { success: true, message: 'Your account has been created successfully.' };
-    },
-    login: (email, password) => {
-      const normalizedEmail = email.trim().toLowerCase();
-      const existingUser = users.find(
-        (item) => item.email.toLowerCase() === normalizedEmail && item.password === password,
-      );
-
-      if (!existingUser) {
-        return { success: false, message: 'Invalid email or password.' };
-      }
-
-      setUser(existingUser);
-      localStorage.setItem(ACTIVE_USER_KEY, existingUser.email);
-      return { success: true, message: 'Signed in successfully.' };
-    },
-    logout: () => {
       setUser(null);
+      clearStoredAuthToken();
       localStorage.removeItem(ACTIVE_USER_KEY);
     },
-    updateProfile: (payload) => {
-      if (!user) return;
+    updateProfile: async (payload) => {
+      if (!user?.id) return;
 
-      const updatedUser = { ...user, ...payload };
+      const updatedUser = await apiRequest<AuthUser>(`/users/${user.id}`, {
+        method: 'PATCH',
+        body: payload,
+        auth: true,
+      });
+
       setUser(updatedUser);
-      setUsers((prev) =>
-        prev.map((item) => (item.email === user.email ? updatedUser : item)),
-      );
+      if (updatedUser.role !== 'admin') {
+        setUsers((prev) => prev.map((item) => (item.id === updatedUser.id ? updatedUser : item)));
+      }
       localStorage.setItem(ACTIVE_USER_KEY, updatedUser.email);
     },
   }), [user, users]);
