@@ -32,6 +32,11 @@ export interface OrderRecord {
   trackingUpdatedAt: string;
 }
 
+export interface OrderedProductItem {
+  productId: string;
+  quantity: number;
+}
+
 export interface QuoteRequest {
   id: string;
   name: string;
@@ -56,7 +61,7 @@ interface AppDataContextType {
   addBlogPost: (post: BlogPost) => Promise<void>;
   updateBlogPost: (postId: string, post: Partial<BlogPost>) => Promise<void>;
   deleteBlogPost: (postId: string) => Promise<void>;
-  addOrder: (order: OrderRecord) => void;
+  addOrder: (order: OrderRecord, productItems?: OrderedProductItem[]) => void;
   updateOrderStatus: (orderId: string, status: OrderRecord['status']) => void;
   updateOrderTracking: (orderId: string, tracking: Partial<Pick<OrderRecord, 'trackingLocation' | 'trackingUpdate' | 'estimatedDelivery' | 'trackingUpdatedAt'>>) => Promise<void>;
   addQuoteRequest: (request: QuoteRequest) => void;
@@ -144,6 +149,45 @@ function upsertById<T extends { id: string }>(items: T[], item: T) {
   return exists
     ? items.map((current) => current.id === item.id ? item : current)
     : [...items, item];
+}
+
+function normalizeOrderedProductItems(items: OrderedProductItem[] = []) {
+  const quantitiesByProductId = new Map<string, number>();
+
+  for (const item of items) {
+    const productId = item.productId?.trim();
+    const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+    if (!productId) continue;
+
+    quantitiesByProductId.set(productId, (quantitiesByProductId.get(productId) ?? 0) + quantity);
+  }
+
+  return Array.from(quantitiesByProductId, ([productId, quantity]) => ({ productId, quantity }));
+}
+
+function incrementOrderLabel(label: string, quantity: number) {
+  const currentCount = Number(label.match(/\d+/)?.[0] ?? 0);
+  const suffix = label.trim().endsWith('+') ? '+' : '';
+
+  return `${currentCount + quantity}${suffix}`;
+}
+
+function incrementProductOrderCounts(products: Product[], orderedItems: OrderedProductItem[]) {
+  if (!orderedItems.length) return products;
+
+  const quantitiesByProductId = new Map(orderedItems.map((item) => [item.productId, item.quantity]));
+
+  return products.map((product) => {
+    const quantity = quantitiesByProductId.get(product.id);
+
+    if (!quantity) return product;
+
+    return {
+      ...product,
+      orders: incrementOrderLabel(product.orders, quantity),
+    };
+  });
 }
 
 function requireAdminToken() {
@@ -364,10 +408,26 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return nextPosts;
       });
     },
-    addOrder: (order) => {
+    addOrder: (order, productItems = []) => {
       const normalized = normalizeOrder(order);
+      const orderedProductItems = normalizeOrderedProductItems(productItems);
+
       setOrders((prev) => [normalized, ...prev]);
-      void apiRequest<OrderRecord>('/orders', { method: 'POST', body: normalized, auth: true });
+
+      if (orderedProductItems.length) {
+        setProducts((prev) => {
+          const nextProducts = incrementProductOrderCounts(prev, orderedProductItems).map(normalizeProduct);
+          writeStoredCollection(PRODUCTS_KEY, nextProducts);
+
+          return nextProducts;
+        });
+      }
+
+      void apiRequest<OrderRecord>('/orders', {
+        method: 'POST',
+        body: { ...normalized, productItems: orderedProductItems },
+        auth: true,
+      });
     },
     updateOrderStatus: (orderId, status) => {
       setOrders((prev) => prev.map((item) => item.id === orderId ? { ...item, status } : item));

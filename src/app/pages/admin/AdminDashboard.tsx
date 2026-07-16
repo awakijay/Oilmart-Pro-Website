@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router';
-import { LayoutDashboard, Package, ShoppingBag, LogOut, Users, BarChart3, FileText, Home, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, LogOut, Users, BarChart3, FileText, Home, MessageCircle, Truck, Settings } from 'lucide-react';
 import { BrandLogo } from '../../components/BrandLogo';
 import { useChat } from '../../context/ChatContext';
 import { apiRequest } from '../../utils/api';
@@ -50,10 +50,12 @@ export function AdminDashboard() {
     { icon: LayoutDashboard, label: 'Overview', path: '/admin/dashboard' },
     { icon: Package, label: 'Products', path: '/admin/dashboard/products' },
     { icon: ShoppingBag, label: 'Orders', path: '/admin/dashboard/orders' },
+    { icon: Truck, label: 'Tracker', path: '/admin/dashboard/tracker' },
     { icon: MessageCircle, label: 'Chats', path: '/admin/dashboard/chats' },
     { icon: Users, label: 'Customers', path: '/admin/dashboard/customers' },
     { icon: FileText, label: 'Blog Posts', path: '/admin/dashboard/blog' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/dashboard/analytics' },
+    { icon: Settings, label: 'Settings', path: '/admin/dashboard/settings' },
   ];
 
   const isActive = (path: string) => location.pathname === path;

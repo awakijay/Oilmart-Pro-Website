@@ -53,7 +53,7 @@ const configs = {
   },
   chatMessages: {
     route: '/api/chat/messages', table: 'chat_messages', customAccess: true,
-    row: (b) => ({ id: b.id?.toString().trim() || randomUUID(), thread_id: b.threadId ?? '', sender: b.sender ?? 'user', text: b.text ?? '', timestamp: b.timestamp ?? new Date().toISOString() }),
+    row: (b) => ({ id: b.id?.toString().trim() || randomUUID(), thread_id: b.threadId ?? '', sender: b.sender === 'admin' ? 'admin' : 'user', text: b.text ?? '', timestamp: b.timestamp ?? new Date().toISOString() }),
     api: (r) => ({ id: r.id, threadId: r.thread_id, sender: r.sender, text: r.text, timestamp: r.timestamp }),
   },
 };
@@ -73,7 +73,7 @@ function securityHeaders() {
   return headers;
 }
 function corsHeaders(origin) {
-  const headers = { 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
+  const headers = { 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Super-Admin-Password', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
   if (!origin) return headers;
   if (allowedOrigins.has(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;
@@ -170,7 +170,41 @@ async function hashPassword(password, salt = randomUUID()) {
 }
 
 function sanitizeUser(user) {
-  return user ? { id: user.id, firstName: user.first_name, lastName: user.last_name, username: user.username, email: user.email, phone: user.phone, company: user.company, avatar: user.avatar, role: user.role } : null;
+  return user ? { id: user.id, firstName: user.first_name, lastName: user.last_name, username: user.username, email: user.email, phone: user.phone, company: user.company, avatar: user.avatar, role: user.role, isSuperAdmin: Boolean(user.is_super_admin) } : null;
+}
+
+function validatePassword(value = '') {
+  return value.trim().length >= 8;
+}
+
+function getSuperAdminPassword(request, body = {}) {
+  const headerValue = request.headers['x-super-admin-password'];
+  const passwordFromHeader = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+  return body.superAdminPassword?.toString() || body.password?.toString() || passwordFromHeader?.toString() || '';
+}
+
+async function verifySuperAdminPassword(password = '') {
+  const value = password.trim();
+  if (!value) return false;
+
+  const result = await query(`SELECT password_salt, password_hash FROM users WHERE role = 'admin' AND is_super_admin = TRUE`);
+
+  for (const user of result.rows) {
+    if (await verifyPassword(value, user.password_salt, user.password_hash)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function requireSuperAdminPassword(request, response, origin, body = {}) {
+  if (await verifySuperAdminPassword(getSuperAdminPassword(request, body))) {
+    return true;
+  }
+
+  json(response, 403, { error: 'Super admin password is required or incorrect.' }, origin);
+  return false;
 }
 
 function publicOrderTracking(row) {
@@ -185,6 +219,145 @@ function publicOrderTracking(row) {
     estimatedDelivery: row.estimated_delivery,
     trackingUpdatedAt: row.tracking_updated_at,
   };
+}
+
+function extractOrderId(text = '') {
+  return text.match(/\b(?:ORD|OMP)-[A-Z0-9-]+\b/i)?.[0].toUpperCase() ?? null;
+}
+
+function formatTrackingTime(value = '') {
+  if (!value) return 'Not updated yet';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function formatTrackingReply(tracking) {
+  return [
+    `Order ${tracking.id} is currently ${tracking.status}.`,
+    `Location: ${tracking.trackingLocation || 'Awaiting admin location update'}.`,
+    `Update: ${tracking.trackingUpdate || 'No tracking note has been added yet.'}`,
+    `Estimated delivery: ${tracking.estimatedDelivery || 'Pending admin confirmation'}.`,
+    `Last updated: ${formatTrackingTime(tracking.trackingUpdatedAt)}.`,
+  ].join('\n');
+}
+
+function getWebsiteHelpReply(text = '') {
+  const lower = text.toLowerCase();
+
+  if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(lower)) {
+    return 'Hello. I can help with products, sells, lease, buy-for-me requests, checkout, quotes, accounts, blog posts, contact details, and order tracking. Send your order number like ORD-1234567890 to track an order.';
+  }
+
+  if (lower.includes('track') || lower.includes('order number') || lower.includes('where is my order') || lower.includes('delivery')) {
+    return 'To track an order, send the order number exactly as shown after checkout, for example: ORD-1234567890. I will check the current status, location, latest update, and estimated delivery.';
+  }
+
+  if (lower.includes('lease') || lower.includes('rent') || lower.includes('rental')) {
+    return 'For LEASE requests, open a product, choose the lease option, add it to cart, and submit checkout. The admin team can review availability, duration, mobilization, and rental terms from your order details.';
+  }
+
+  if (lower.includes('buy for me') || lower.includes('procure') || lower.includes('procurement')) {
+    return 'For BUY FOR ME, choose the buy-for-me option on a product and complete checkout. Oilmart Pro will review the request, confirm specifications, and follow up with sourcing or procurement details.';
+  }
+
+  if (lower.includes('sell') || lower.includes('sales') || lower.includes('buy equipment') || lower.includes('purchase')) {
+    return 'For SELLS, browse Products, open the equipment you need, choose the sells option, add it to cart, and complete checkout. Your order will appear in your profile and in the admin order panel.';
+  }
+
+  if (lower.includes('quote') || lower.includes('pricing') || lower.includes('price')) {
+    return 'You can request pricing from the Contact page or by checking out with the selected equipment. Quotes and order requests are reviewed by the admin team before final approval.';
+  }
+
+  if (lower.includes('account') || lower.includes('profile') || lower.includes('login') || lower.includes('sign in')) {
+    return 'Create or sign in to an account to place orders, view your profile, see order history, and keep a dedicated chat thread with the admin team.';
+  }
+
+  if (lower.includes('payment') || lower.includes('checkout') || lower.includes('cart')) {
+    return 'Add products to cart, choose your operation type, then complete checkout from the cart page. Checkout supports card, wire transfer, and purchase order options in the current flow.';
+  }
+
+  if (lower.includes('blog') || lower.includes('article') || lower.includes('news')) {
+    return 'Published blog posts appear on the homepage and blog pages. Draft posts stay hidden until an admin publishes them.';
+  }
+
+  if (lower.includes('contact') || lower.includes('support') || lower.includes('phone') || lower.includes('email')) {
+    return 'You can use this chat or the Contact page for support, sales, quote, leasing, or procurement questions. The admin team can also reply here when they are available.';
+  }
+
+  return 'I can help with Oilmart Pro products, sells, lease, buy-for-me, checkout, quotes, accounts, blog posts, contact, and order tracking. For tracking, send your order number like ORD-1234567890. An admin can still reply here when they are available.';
+}
+
+async function buildAutomatedChatReply(text = '') {
+  const orderId = extractOrderId(text);
+
+  if (orderId) {
+    const result = await query(`SELECT * FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
+
+    if (!result.rowCount) {
+      return `I could not find tracking details for ${orderId}. Please check the order number from checkout or your profile order history.`;
+    }
+
+    return formatTrackingReply(publicOrderTracking(result.rows[0]));
+  }
+
+  return getWebsiteHelpReply(text);
+}
+
+async function createAutomatedSupportReply(threadId, userText) {
+  const replyText = await buildAutomatedChatReply(userText);
+  const replyRow = {
+    id: `support-${randomUUID()}`,
+    thread_id: threadId,
+    sender: 'admin',
+    text: replyText,
+    timestamp: new Date().toISOString(),
+  };
+  const insert = buildInsert('chat_messages', replyRow);
+  const result = await query(insert.text, insert.values);
+  return result.rowCount ? configs.chatMessages.api(result.rows[0]) : null;
+}
+
+function normalizeOrderedProductItems(items) {
+  if (!Array.isArray(items)) return [];
+
+  const quantitiesByProductId = new Map();
+
+  for (const item of items) {
+    const productId = item?.productId?.toString().trim() || item?.id?.toString().trim() || '';
+    const quantity = Math.max(1, Math.floor(Number(item?.quantity) || 1));
+
+    if (!productId) continue;
+
+    quantitiesByProductId.set(productId, (quantitiesByProductId.get(productId) ?? 0) + quantity);
+  }
+
+  return Array.from(quantitiesByProductId, ([productId, quantity]) => ({ productId, quantity }));
+}
+
+function incrementOrdersLabel(label, quantity) {
+  const text = label?.toString() ?? '0';
+  const currentCount = Number(text.match(/\d+/)?.[0] ?? 0);
+  const suffix = text.trim().endsWith('+') ? '+' : '';
+
+  return `${currentCount + quantity}${suffix}`;
+}
+
+async function incrementProductOrderCounts(items) {
+  const orderedItems = normalizeOrderedProductItems(items);
+
+  if (!orderedItems.length) return;
+
+  for (const item of orderedItems) {
+    const result = await query(`SELECT orders_label FROM products WHERE id = $1 LIMIT 1`, [item.productId]);
+
+    if (!result.rowCount) continue;
+
+    await query(
+      `UPDATE products SET orders_label = $2, updated_at = NOW() WHERE id = $1`,
+      [item.productId, incrementOrdersLabel(result.rows[0].orders_label, item.quantity)],
+    );
+  }
 }
 
 function isRateLimited(request, suffix, limit = 10, windowMs = 15 * 60 * 1000) {
@@ -265,6 +438,108 @@ async function handleAuthRoutes(request, response, pathname, origin) {
     const adminState = await requireAdminSession(request);
     if (!adminState) { unauthorized(response, origin); return true; }
     json(response, 200, { user: sanitizeUser(adminState.user) }, origin); return true;
+  }
+  if (pathname === '/api/admin/super-admin/verify') {
+    if (request.method !== 'POST') { methodNotAllowed(response, origin); return true; }
+    const adminState = await requireAdminSession(request);
+    if (!adminState) { unauthorized(response, origin); return true; }
+    if (isRateLimited(request, 'super-admin-verify', 8)) { tooManyRequests(response, origin); return true; }
+    const body = await parseBody(request);
+    if (!(await requireSuperAdminPassword(request, response, origin, body))) return true;
+    json(response, 200, { success: true }, origin); return true;
+  }
+  if (pathname === '/api/admin/users') {
+    const adminState = await requireAdminSession(request);
+    if (!adminState) { unauthorized(response, origin); return true; }
+
+    if (request.method === 'GET') {
+      if (!(await requireSuperAdminPassword(request, response, origin))) return true;
+      const admins = await query(`SELECT * FROM users WHERE role = 'admin' ORDER BY is_super_admin DESC, created_at DESC`);
+      json(response, 200, admins.rows.map(sanitizeUser), origin); return true;
+    }
+
+    if (request.method === 'POST') {
+      const body = await parseBody(request);
+      if (!(await requireSuperAdminPassword(request, response, origin, body))) return true;
+      const firstName = body.firstName?.trim();
+      const lastName = body.lastName?.trim();
+      const username = body.username?.trim().toLowerCase();
+      const email = normalizeEmail(body.email);
+      const password = body.password?.trim() ?? '';
+
+      if (!firstName || !lastName || !username || !email || !password) {
+        badRequest(response, origin, 'firstName, lastName, username, email, and password are required.'); return true;
+      }
+
+      if (!validatePassword(password)) {
+        badRequest(response, origin, 'Password must be at least 8 characters.'); return true;
+      }
+
+      const duplicate = await query(`SELECT id FROM users WHERE LOWER(username) = $1 OR email = $2 LIMIT 1`, [username, email]);
+      if (duplicate.rowCount) { badRequest(response, origin, 'An account with this username or email already exists.'); return true; }
+
+      const passwordState = await hashPassword(password);
+      const userId = randomUUID();
+      const created = await query(
+        `INSERT INTO users (
+          id, first_name, last_name, username, email, phone, company, avatar, role, is_super_admin, password_salt, password_hash
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        RETURNING *`,
+        [userId, firstName, lastName, username, email, body.phone?.trim() ?? '', 'Oilmart Pro', '', 'admin', false, passwordState.passwordSalt, passwordState.passwordHash],
+      );
+
+      json(response, 201, sanitizeUser(created.rows[0]), origin); return true;
+    }
+
+    methodNotAllowed(response, origin); return true;
+  }
+  const adminUserId = pathname.startsWith('/api/admin/users/') ? slugFromPath(pathname, '/api/admin/users') : null;
+  if (adminUserId) {
+    const adminState = await requireAdminSession(request);
+    if (!adminState) { unauthorized(response, origin); return true; }
+
+    if (request.method !== 'DELETE') { methodNotAllowed(response, origin); return true; }
+
+    const body = await parseBody(request);
+    if (!(await requireSuperAdminPassword(request, response, origin, body))) return true;
+
+    const target = await query(`SELECT * FROM users WHERE id = $1 AND role = 'admin' LIMIT 1`, [adminUserId]);
+    if (!target.rowCount) { notFound(response, origin); return true; }
+    if (target.rows[0].is_super_admin) {
+      badRequest(response, origin, 'The super admin account cannot be removed.'); return true;
+    }
+
+    await query(`DELETE FROM users WHERE id = $1 AND role = 'admin'`, [adminUserId]);
+    json(response, 200, { success: true }, origin); return true;
+  }
+  if (pathname === '/api/admin/password') {
+    if (request.method !== 'PATCH' && request.method !== 'POST') { methodNotAllowed(response, origin); return true; }
+    const adminState = await requireAdminSession(request);
+    if (!adminState) { unauthorized(response, origin); return true; }
+
+    const body = await parseBody(request);
+    const currentPassword = body.currentPassword?.trim() ?? '';
+    const newPassword = body.newPassword?.trim() ?? '';
+
+    if (!currentPassword || !newPassword) {
+      badRequest(response, origin, 'currentPassword and newPassword are required.'); return true;
+    }
+
+    if (!validatePassword(newPassword)) {
+      badRequest(response, origin, 'New password must be at least 8 characters.'); return true;
+    }
+
+    if (!(await verifyPassword(currentPassword, adminState.user.password_salt, adminState.user.password_hash))) {
+      unauthorized(response, origin); return true;
+    }
+
+    const passwordState = await hashPassword(newPassword);
+    await query(
+      `UPDATE users SET password_salt = $2, password_hash = $3, updated_at = NOW() WHERE id = $1`,
+      [adminState.user.id, passwordState.passwordSalt, passwordState.passwordHash],
+    );
+
+    json(response, 200, { success: true }, origin); return true;
   }
   if (pathname === '/api/admin/logout' || pathname === '/api/auth/logout') {
     if (request.method !== 'POST') { methodNotAllowed(response, origin); return true; }
@@ -347,11 +622,31 @@ async function createRow(config, request, authState, body) {
   if (config.customAccess && config.table === 'chat_messages' && authState?.user.role !== 'admin') {
     const threadId = body.threadId?.toString().trim() ?? '', allowed = authState ? getAllowedCustomerThreadId(authState.user) : null;
     if (threadId !== guestThread.id && threadId !== allowed) throw new Error('FORBIDDEN');
-    if (body.sender === 'admin') throw new Error('FORBIDDEN');
+    if ((body.sender ?? 'user') !== 'user') throw new Error('FORBIDDEN');
+
+    if (threadId === guestThread.id) {
+      await query(`INSERT INTO chat_threads (id, label, source) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING`, [guestThread.id, guestThread.label, guestThread.source]);
+    } else if (authState && threadId === allowed) {
+      const userName = `${authState.user.first_name} ${authState.user.last_name}`.trim() || authState.user.email;
+      await query(
+        `INSERT INTO chat_threads (id, label, source, user_email, user_name) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING`,
+        [threadId, userName, 'account', authState.user.email, userName],
+      );
+    }
   }
   const row = config.row(body), insert = buildInsert(config.table, row), result = await query(insert.text, insert.values);
   const stored = result.rowCount ? result.rows[0] : (await query(`SELECT * FROM ${config.table} WHERE id = $1`, [row.id])).rows[0];
-  return config.api(stored);
+  const apiRow = config.api(stored);
+
+  if (config.table === 'orders' && result.rowCount) {
+    await incrementProductOrderCounts(body.productItems);
+  }
+
+  if (config.table === 'chat_messages' && row.sender === 'user' && result.rowCount && !body.suppressAutomatedReply) {
+    await createAutomatedSupportReply(row.thread_id, row.text);
+  }
+
+  return apiRow;
 }
 
 async function updateRow(config, itemId, authState, body) {

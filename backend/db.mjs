@@ -85,6 +85,7 @@ export async function initializeDatabase() {
       company TEXT NOT NULL DEFAULT '',
       avatar TEXT NOT NULL DEFAULT '',
       role TEXT NOT NULL CHECK (role IN ('admin', 'customer')),
+      is_super_admin BOOLEAN NOT NULL DEFAULT FALSE,
       password_salt TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -162,7 +163,7 @@ export async function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
-      sender TEXT NOT NULL CHECK (sender IN ('user', 'admin', 'bot')),
+      sender TEXT NOT NULL CHECK (sender IN ('user', 'admin')),
       text TEXT NOT NULL,
       timestamp TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -175,12 +176,28 @@ export async function initializeDatabase() {
 
   await query(`ALTER TABLE users ALTER COLUMN avatar TYPE TEXT`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE`);
+  await query(`
+    UPDATE users
+    SET is_super_admin = TRUE
+    WHERE id = (
+      SELECT id FROM users
+      WHERE role = 'admin'
+      ORDER BY created_at ASC
+      LIMIT 1
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM users
+      WHERE role = 'admin' AND is_super_admin = TRUE
+    )
+  `);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_location TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_update TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS estimated_delivery TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE chat_messages DROP CONSTRAINT IF EXISTS chat_messages_sender_check`);
-  await query(`ALTER TABLE chat_messages ADD CONSTRAINT chat_messages_sender_check CHECK (sender IN ('user', 'admin', 'bot'))`);
+  await query(`UPDATE chat_messages SET sender = 'admin' WHERE sender = 'bot'`);
+  await query(`ALTER TABLE chat_messages ADD CONSTRAINT chat_messages_sender_check CHECK (sender IN ('user', 'admin'))`);
 
   await query(`INSERT INTO chat_threads (id, label, source) VALUES ('guest-support', 'Website Support Inbox', 'guest') ON CONFLICT (id) DO NOTHING`);
 
@@ -190,8 +207,8 @@ export async function initializeDatabase() {
   const passwordState = await hashPassword(defaultAdminPassword);
   await query(
     `INSERT INTO users (
-      id, first_name, last_name, username, email, phone, company, avatar, role, password_salt, password_hash
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      id, first_name, last_name, username, email, phone, company, avatar, role, is_super_admin, password_salt, password_hash
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       randomUUID(),
       'Admin',
@@ -202,6 +219,7 @@ export async function initializeDatabase() {
       'Oilmart Pro',
       '',
       'admin',
+      true,
       passwordState.passwordSalt,
       passwordState.passwordHash,
     ],

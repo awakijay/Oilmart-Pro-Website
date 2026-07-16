@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, ShoppingCart, User, Menu, LogOut, X, CheckCircle2 } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, LogOut, X, CheckCircle2, Truck } from 'lucide-react';
 import { Link } from 'react-router';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useCart } from '../context/CartContext';
@@ -65,6 +65,10 @@ export function Header() {
           <div className="flex flex-wrap gap-4">
             <Link to="/become-a-supplier" className="transition hover:text-orange-400">Become a Supplier</Link>
             <Link to="/help-center" className="transition hover:text-orange-400">Help Center</Link>
+            <Link to="/track-order" className="inline-flex items-center gap-1 font-semibold text-orange-300 transition hover:text-orange-200">
+              <Truck className="h-4 w-4" />
+              Track Order
+            </Link>
           </div>
         </div>
       </div>
@@ -78,6 +82,13 @@ export function Header() {
               </Link>
 
               <div className="flex items-center gap-2 lg:hidden">
+                <Link
+                  to="/track-order"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 transition hover:border-orange-500 hover:text-orange-700"
+                  aria-label="Track order"
+                >
+                  <Truck className="h-5 w-5" />
+                </Link>
                 <Link
                   to="/cart"
                   className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:border-orange-500 hover:text-orange-500"
@@ -121,6 +132,13 @@ export function Header() {
             </div>
 
             <div className="hidden items-center gap-4 lg:flex">
+              <Link
+                to="/track-order"
+                className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
+              >
+                <Truck className="h-4 w-4" />
+                Track Order
+              </Link>
               {isAuthenticated && user ? (
                 <div className="flex items-center gap-4">
                   <Link to="/profile" className="flex items-center gap-3 transition hover:text-orange-500">
@@ -191,6 +209,10 @@ export function Header() {
               )}
 
               <div className="grid grid-cols-1 gap-3">
+                <Link to="/track-order" className="flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600">
+                  <Truck className="h-4 w-4" />
+                  Track Order
+                </Link>
                 <Link to="/admin" className="flex items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm text-gray-700 transition hover:text-orange-500">
                   Admin
                 </Link>
@@ -226,6 +248,10 @@ export function Header() {
               </Link>
               <Link to="/" className="whitespace-nowrap rounded px-4 py-2 transition hover:bg-white hover:text-orange-500">
                 Home
+              </Link>
+              <Link to="/track-order" className="inline-flex items-center gap-2 whitespace-nowrap rounded px-4 py-2 font-semibold text-orange-600 transition hover:bg-white hover:text-orange-500">
+                <Truck className="h-4 w-4" />
+                Track Order
               </Link>
               {categoryLinks.map((cat) => (
                 <Link

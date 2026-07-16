@@ -6,6 +6,7 @@ type RequestOptions = {
   body?: unknown;
   auth?: boolean;
   token?: string | null;
+  headers?: Record<string, string>;
 };
 
 export function getStoredAuthToken() {
@@ -23,6 +24,7 @@ export function clearStoredAuthToken() {
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(options.headers ?? {}),
   };
 
   if (options.auth) {

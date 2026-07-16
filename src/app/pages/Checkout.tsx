@@ -84,6 +84,10 @@ export function Checkout() {
 
     const orderId = `ORD-${Date.now()}`;
     const trackingUpdatedAt = new Date().toISOString();
+    const orderedProductItems = cart.map((item) => ({
+      productId: item.id,
+      quantity: item.quantity,
+    }));
 
     addOrder({
       id: orderId,
@@ -98,7 +102,7 @@ export function Checkout() {
       trackingUpdate: 'Order received. The admin team will update the tracker as processing and dispatch progress.',
       estimatedDelivery: '',
       trackingUpdatedAt,
-    });
+    }, orderedProductItems);
     setPlacedOrderId(orderId);
     setStep('success');
     // Simulate order placement

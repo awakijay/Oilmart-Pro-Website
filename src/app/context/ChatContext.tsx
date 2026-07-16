@@ -13,10 +13,14 @@ export interface ChatThread {
 export interface ChatMessage {
   id: string;
   threadId: string;
-  sender: 'user' | 'admin' | 'bot';
+  sender: 'user' | 'admin';
   text: string;
   timestamp: string;
 }
+
+type StoredChatMessage = Omit<ChatMessage, 'sender'> & {
+  sender: ChatMessage['sender'] | 'bot';
+};
 
 interface OrderTrackingInfo {
   id: string;
@@ -104,7 +108,7 @@ function getWebsiteHelpReply(text: string) {
   const lower = text.toLowerCase();
 
   if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(lower)) {
-    return 'Hello. I am the Oilmart Pro assistant. I can help with products, sells, lease, buy-for-me requests, checkout, quotes, accounts, blog posts, contact details, and order tracking. Send your order number like ORD-1234567890 to track an order.';
+    return 'Hello. I can help with products, sells, lease, buy-for-me requests, checkout, quotes, accounts, blog posts, contact details, and order tracking. Send your order number like ORD-1234567890 to track an order.';
   }
 
   if (lower.includes('track') || lower.includes('order number') || lower.includes('where is my order') || lower.includes('delivery')) {
@@ -140,7 +144,7 @@ function getWebsiteHelpReply(text: string) {
   }
 
   if (lower.includes('contact') || lower.includes('support') || lower.includes('phone') || lower.includes('email')) {
-    return 'You can use this chat or the Contact page for support, sales, quote, leasing, or procurement questions. I will keep helping until an admin joins this conversation.';
+    return 'You can use this chat or the Contact page for support, sales, quote, leasing, or procurement questions. The admin team can also reply here when they are available.';
   }
 
   return 'I can help with Oilmart Pro products, sells, lease, buy-for-me, checkout, quotes, accounts, blog posts, contact, and order tracking. For tracking, send your order number like ORD-1234567890. An admin can still reply here when they are available.';
@@ -175,7 +179,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const savedThreads = localStorage.getItem(CHAT_THREADS_KEY);
       const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY);
       const parsedThreads: ChatThread[] = savedThreads ? JSON.parse(savedThreads) : [];
-      const parsedMessages: ChatMessage[] = savedMessages ? JSON.parse(savedMessages) : [];
+      const parsedMessages: StoredChatMessage[] = savedMessages ? JSON.parse(savedMessages) : [];
       const adminToken = getStoredAdminToken();
       const customerToken = getStoredAuthToken();
 
@@ -199,9 +203,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       for (const message of parsedMessages.filter((item) => item.id !== 'welcome-1')) {
         try {
+          const sender = message.sender === 'bot' ? 'admin' : message.sender;
           await apiRequest<ChatMessage>('/chat/messages', {
             method: 'POST',
-            body: message,
+            body: { ...message, sender, suppressAutomatedReply: true },
             ...(message.threadId === guestThread.id
               ? {}
               : adminToken
@@ -336,7 +341,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!normalizedText) return;
 
     const thread = ensureThread(options);
-    const adminHasJoined = messages.some((message) => message.threadId === thread.id && message.sender === 'admin');
     const nextMessage = {
       id: `${Date.now()}-user`,
       threadId: thread.id,
@@ -350,30 +354,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: nextMessage,
       ...(thread.id === guestThread.id ? {} : { auth: true, token: getStoredAuthToken() }),
-    });
+    }).catch(() => undefined);
     setUnreadForAdminByThread((prev) => ({ ...prev, [thread.id]: (prev[thread.id] ?? 0) + 1 }));
 
-    if (!adminHasJoined) {
-      void sendAutomatedReply(thread.id, normalizedText);
-    }
+    void sendAutomatedReply(thread.id, normalizedText);
   };
 
   const sendAutomatedReply = async (threadId: string, userText: string) => {
     const replyText = await buildAutomatedReply(userText);
     const nextMessage = {
-      id: `${Date.now()}-bot-${Math.random().toString(36).slice(2, 8)}`,
+      id: `${Date.now()}-support-${Math.random().toString(36).slice(2, 8)}`,
       threadId,
-      sender: 'bot' as const,
+      sender: 'admin' as const,
       text: replyText,
       timestamp: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, nextMessage]);
-    void apiRequest<ChatMessage>('/chat/messages', {
-      method: 'POST',
-      body: nextMessage,
-      ...(threadId === guestThread.id ? {} : { auth: true, token: getStoredAuthToken() }),
-    });
     setUnreadForUserByThread((prev) => ({ ...prev, [threadId]: (prev[threadId] ?? 0) + 1 }));
   };
 

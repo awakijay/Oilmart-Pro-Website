@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react';
 import { MessageCircle, Send, X } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 
+const quickPrompts = [
+  'Track my order',
+  'How do I lease equipment?',
+  'How do I request a quote?',
+  'How does buy for me work?',
+];
+
 export function ChatWidget() {
   const {
     guestThreadId,
@@ -29,6 +36,10 @@ export function ChatWidget() {
     setDraft('');
   };
 
+  const handleQuickPrompt = (prompt: string) => {
+    sendUserMessage(prompt, { threadId: guestThreadId, source: 'guest' });
+  };
+
   return (
     <div className="fixed bottom-20 right-4 z-50 sm:bottom-6 sm:right-6">
       {isWidgetOpen && (
@@ -36,7 +47,7 @@ export function ChatWidget() {
           <div className="flex items-start justify-between gap-3 bg-gray-900 px-4 py-4 text-white sm:px-5">
             <div>
               <div className="font-semibold">Support Chat</div>
-              <div className="text-xs text-gray-300">Sales, lease, and buy-for-me assistance</div>
+              <div className="text-xs text-gray-300">Sales, lease, buy-for-me, and order tracking assistance</div>
             </div>
             <button onClick={closeWidget} className="rounded-full p-1 hover:bg-gray-800 transition">
               <X className="w-4 h-4" />
@@ -46,7 +57,8 @@ export function ChatWidget() {
           <div className="max-h-[55vh] space-y-3 overflow-y-auto bg-gray-50 p-3 sm:max-h-80 sm:p-4">
             {messages.length === 0 && (
               <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                Ask about Oilmart Pro services, checkout, quotes, or send an order number like ORD-1234567890 to track it.
+                <p className="font-semibold">Support chat is online.</p>
+                <p className="mt-1">Ask about the website or send an order number like ORD-1234567890 to track it.</p>
               </div>
             )}
             {messages.map((message) => (
@@ -58,12 +70,9 @@ export function ChatWidget() {
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                     message.sender === 'user'
                       ? 'bg-orange-500 text-white'
-                      : message.sender === 'bot'
-                        ? 'border border-blue-100 bg-blue-50 text-blue-950'
-                        : 'border border-gray-200 bg-white text-gray-900'
+                      : 'border border-gray-200 bg-white text-gray-900'
                   }`}
                 >
-                  {message.sender === 'bot' && <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Oilmart Assistant</p>}
                   <p className="whitespace-pre-line">{message.text}</p>
                   <p className={`mt-1 text-[11px] ${message.sender === 'user' ? 'text-orange-100' : 'text-gray-400'}`}>
                     {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -74,6 +83,18 @@ export function ChatWidget() {
           </div>
 
           <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white p-3">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {quickPrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handleQuickPrompt(prompt)}
+                  className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-2">
               <input
                 type="text"

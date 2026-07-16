@@ -8,6 +8,7 @@ import { Cart } from './pages/Cart';
 import { Checkout } from './pages/Checkout';
 import { Auth } from './pages/Auth';
 import { Profile } from './pages/Profile';
+import { TrackOrder } from './pages/TrackOrder';
 import { ContactPage } from './pages/ContactPage';
 import { FAQPage } from './pages/FAQPage';
 import { InfoPage } from './pages/InfoPage';
@@ -17,8 +18,10 @@ import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminOverview } from './pages/admin/AdminOverview';
 import { AdminProducts } from './pages/admin/AdminProducts';
 import { AdminOrders } from './pages/admin/AdminOrders';
+import { AdminTracker } from './pages/admin/AdminTracker';
 import { AdminBlog } from './pages/admin/AdminBlog';
 import { AdminChats } from './pages/admin/AdminChats';
+import { AdminSettings } from './pages/admin/AdminSettings';
 import { AdminPlaceholder } from './pages/admin/AdminPlaceholder';
 
 export const router = createBrowserRouter([
@@ -34,6 +37,7 @@ export const router = createBrowserRouter([
       { path: 'checkout', Component: Checkout },
       { path: 'auth', Component: Auth },
       { path: 'profile', Component: Profile },
+      { path: 'track-order', Component: TrackOrder },
       { path: 'home', Component: Home },
       { path: 'faq', Component: FAQPage },
       { path: 'contact', Component: ContactPage },
@@ -213,8 +217,10 @@ export const router = createBrowserRouter([
       { index: true, Component: AdminOverview },
       { path: 'products', Component: AdminProducts },
       { path: 'orders', Component: AdminOrders },
+      { path: 'tracker', Component: AdminTracker },
       { path: 'blog', Component: AdminBlog },
       { path: 'chats', Component: AdminChats },
+      { path: 'settings', Component: AdminSettings },
       {
         path: 'customers',
         element: <AdminPlaceholder title="Customers" description="Manage customer accounts and information" />,

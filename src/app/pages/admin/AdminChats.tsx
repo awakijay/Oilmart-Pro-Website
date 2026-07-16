@@ -8,7 +8,6 @@ export function AdminChats() {
   const [selectedThreadId, setSelectedThreadId] = useState(guestThreadId);
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? threads[0];
   const messages = selectedThread ? getMessagesForThread(selectedThread.id) : [];
-  const adminHasJoined = messages.some((message) => message.sender === 'admin');
 
   useEffect(() => {
     if (selectedThreadId) {
@@ -84,13 +83,6 @@ export function AdminChats() {
                     : 'Shared live thread from the storefront chat FAB'}
                 </div>
               </div>
-              {selectedThread && (
-                <span className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                  adminHasJoined ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {adminHasJoined ? 'Admin joined' : 'Bot active'}
-                </span>
-              )}
             </div>
           </div>
 
@@ -104,13 +96,11 @@ export function AdminChats() {
                   className={`max-w-[90%] rounded-2xl px-4 py-3 sm:max-w-2xl ${
                     message.sender === 'admin'
                       ? 'bg-gray-900 text-white'
-                      : message.sender === 'bot'
-                        ? 'border border-blue-100 bg-blue-50 text-blue-950'
-                        : 'border border-gray-200 bg-white text-gray-900'
+                      : 'border border-gray-200 bg-white text-gray-900'
                   }`}
                 >
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">
-                    {message.sender === 'admin' ? 'Admin Reply' : message.sender === 'bot' ? 'Oilmart Assistant' : 'Customer'}
+                    {message.sender === 'admin' ? 'Support Reply' : 'Customer'}
                   </div>
                   <p className="whitespace-pre-line text-sm leading-relaxed">{message.text}</p>
                   <p className={`mt-2 text-[11px] ${message.sender === 'admin' ? 'text-gray-300' : 'text-gray-400'}`}>

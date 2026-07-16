@@ -7,6 +7,13 @@ import { type ChatThread, useChat } from '../context/ChatContext';
 import { useAppData } from '../context/AppDataContext';
 import { IMAGE_ACCEPT, imageFileToDataUrl } from '../utils/imageUpload';
 
+const quickChatPrompts = [
+  'Track my order',
+  'How do I lease equipment?',
+  'How do I request a quote?',
+  'How does buy for me work?',
+];
+
 export function Profile() {
   const { user, isAuthenticated, updateProfile } = useAuth();
   const { sendUserMessage, getMessagesForThread, getOrCreateAccountThread, markUserInboxRead } = useChat();
@@ -90,6 +97,17 @@ export function Profile() {
       source: 'account',
     });
     setChatMessage('');
+  };
+
+  const handleQuickChatPrompt = (prompt: string) => {
+    if (!profileThread || !user) return;
+
+    sendUserMessage(prompt, {
+      threadId: profileThread.id,
+      userEmail: user.email,
+      userName: displayName,
+      source: 'account',
+    });
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -324,7 +342,9 @@ export function Profile() {
 
               {activeTab === 'chat' && (
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Chat with Admin</h2>
+                  <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-2xl font-bold text-gray-900">Chat with Admin</h2>
+                  </div>
                   <div className="border border-gray-200 rounded-lg overflow-hidden">
                     <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gray-50">
                       {messages.length === 0 && (
@@ -334,8 +354,7 @@ export function Profile() {
                       )}
                       {messages.map((message) => (
                         <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'user' ? 'bg-orange-500 text-white' : message.sender === 'bot' ? 'border border-blue-100 bg-blue-50 text-blue-950' : 'bg-white text-gray-900 border border-gray-200'}`}>
-                            {message.sender === 'bot' && <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Oilmart Assistant</p>}
+                          <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'user' ? 'bg-orange-500 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
                             <p className="whitespace-pre-line text-sm">{message.text}</p>
                             <p className={`text-xs mt-1 ${message.sender === 'user' ? 'text-orange-100' : 'text-gray-500'}`}>
                               {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -345,6 +364,18 @@ export function Profile() {
                       ))}
                     </div>
                     <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200">
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {quickChatPrompts.map((prompt) => (
+                          <button
+                            key={prompt}
+                            type="button"
+                            onClick={() => handleQuickChatPrompt(prompt)}
+                            className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600"
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="Ask or track ORD-..." className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500" />
                         <button type="submit" className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-2 sm:justify-start">
